@@ -1,0 +1,35 @@
+scans:
+  - name: "Non-compliant TLS Versions"
+    query: >-
+      WITH tls_version AS (
+        SELECT id 
+        FROM azure_mysql_flexible_server, 
+        jsonb_array_elements(flexible_server_configurations) AS config 
+        WHERE config ->> 'Name' = 'tls_version' 
+        AND config ->> 'Value' NOT IN ('TLS1_2', 'TLS1_3')
+      ) 
+      SELECT id 
+      FROM tls_version
+    output_file: "non_compliant_tls_versions.csv"
+
+  - name: "require_secure_transport' is Set to 'ON' for MySQL Flexible Server"
+    query: >-
+      WITH ssl_enabled AS (
+        SELECT
+          id
+        FROM
+          azure_mysql_flexible_server,
+          jsonb_array_elements(flexible_server_configurations) AS config
+        WHERE
+          config ->> 'Name' = 'require_secure_transport'
+          AND config -> 'ConfigurationProperties' ->> 'value' = 'ON'
+      )
+      SELECT
+        s.name AS resource
+      FROM
+        azure_mysql_flexible_server AS s
+        LEFT JOIN ssl_enabled AS a ON s.id = a.id
+      WHERE
+        a.id IS NULL
+    output_file: "require_secure_transport_is_set_to_on_for_mysql_flexible_server.csv"
+

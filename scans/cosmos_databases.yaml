@@ -1,0 +1,18 @@
+scans:
+  - name: "Cosmos No Firewall"
+    query: >-
+      SELECT name 
+      FROM azure_cosmosdb_account 
+      WHERE is_virtual_network_filter_enabled = false
+    output_file: "cosmos_no_firewall.csv"
+
+  - name: "Public Network Access Without VNet Protection"
+    query: >-
+      SELECT
+        a.name AS resource
+      FROM
+        azure_cosmosdb_account AS a
+      WHERE
+        a.public_network_access = 'Enabled'
+        AND a.is_virtual_network_filter_enabled != 'true'
+    output_file: "public_network_access_without_vnet_protection.csv"

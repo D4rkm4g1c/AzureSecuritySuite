@@ -1,0 +1,68 @@
+scans:
+  - name: "Log Checkpoints Configuration"
+    query: >-
+      WITH log_checkpoints_on AS (
+        SELECT id 
+        FROM azure_postgresql_flexible_server, 
+        jsonb_array_elements(flexible_server_configurations) AS config 
+        WHERE config ->> 'Name' = 'log_checkpoints' 
+        AND config ->> 'Value' = 'on'
+      ) 
+      SELECT id 
+      FROM log_checkpoints_on
+    output_file: "log_checkpoints_configuration.csv"
+
+  - name: "Connection Throttling Configuration"
+    query: >-
+      WITH connection_throttling_off AS (
+        SELECT id 
+        FROM azure_postgresql_flexible_server, 
+        jsonb_array_elements(flexible_server_configurations) AS config 
+        WHERE config ->> 'Name' = 'connection_throttling' 
+        AND config ->> 'Value' = 'off'
+      ) 
+      SELECT id 
+      FROM connection_throttling_off
+    output_file: "connection_throttling_configuration.csv"
+
+  - name: "Log Files Retention Days"
+    query: >-
+      SELECT s.id AS resource 
+      FROM azure_postgresql_flexible_server s, 
+      jsonb_array_elements(flexible_server_configurations) AS config, 
+      azure_subscription sub 
+      WHERE config ->> 'Name' = 'logfiles.retention_days' 
+      AND (config -> 'ConfigurationProperties' ->> 'value')::integer <= 3 
+      AND sub.subscription_id = s.subscription_id
+    output_file: "log_files_retention_days.csv"
+
+  - name: "Server Parameter 'require_secure_transport' Not Set to 'ON"
+    query: >-
+      WITH ssl_enabled AS (
+        SELECT
+          id
+        FROM
+          azure_postgresql_flexible_server,
+          jsonb_array_elements(flexible_server_configurations) AS config
+        WHERE
+          config ->> 'Name' = 'require_secure_transport'
+          AND config -> 'ConfigurationProperties' ->> 'value' = 'on'
+      )
+      SELECT
+        s.name AS resource
+      FROM
+        azure_postgresql_flexible_server AS s
+        LEFT JOIN ssl_enabled AS a ON s.id = a.id
+      WHERE
+        a.id IS NULL
+    output_file: "server_parameter_require_secure_transport_not_set_to_on.csv"
+
+  - name: "Public Access from Any Azure Service to PostgreSQL Flexible Server Enabled"
+    query: >-
+      SELECT
+        s.name AS resource
+      FROM
+        azure_postgresql_server AS s
+      WHERE
+        s.public_network_access = 'Enabled'
+    output_file: "public_access_from_any_azure_service_to_postgresql_flexible_server_enabled.csv"

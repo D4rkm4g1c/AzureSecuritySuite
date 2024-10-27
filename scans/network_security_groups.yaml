@@ -1,0 +1,135 @@
+scans:
+  - name: "Use of Overly Permissive Rules"
+    query: >-
+      WITH unrestricted_inbound AS (
+        SELECT DISTINCT name AS sg_name 
+        FROM azure_network_security_group nsg,
+        jsonb_array_elements(security_rules || default_security_rules) sg,
+        jsonb_array_elements_text(CASE 
+          WHEN jsonb_array_length(sg -> 'properties' -> 'destinationPortRanges') > 0 
+          THEN (sg -> 'properties' -> 'destinationPortRanges') 
+          ELSE jsonb_build_array(sg -> 'properties' -> 'destinationPortRange') 
+        END) AS dport,
+        jsonb_array_elements_text(CASE 
+          WHEN jsonb_array_length(sg -> 'properties' -> 'sourceAddressPrefixes') > 0 
+          THEN (sg -> 'properties' -> 'sourceAddressPrefixes') 
+          ELSE jsonb_build_array(sg -> 'properties' -> 'sourceAddressPrefix') 
+        END) AS sip
+        WHERE sg -> 'properties' ->> 'access' = 'Allow' 
+        AND sg -> 'properties' ->> 'direction' = 'Inbound'
+        AND sip IN ('*', '0.0.0.0', '0.0.0.0/0', 'Internet', 'any', '<nw>/0', '/0')
+        AND dport = '*'
+      ),
+      unrestricted_outbound AS (
+        SELECT DISTINCT name AS sg_name 
+        FROM azure_network_security_group nsg,
+        jsonb_array_elements(security_rules || default_security_rules) sg,
+        jsonb_array_elements_text(CASE 
+          WHEN jsonb_array_length(sg -> 'properties' -> 'destinationPortRanges') > 0 
+          THEN (sg -> 'properties' -> 'destinationPortRanges') 
+          ELSE jsonb_build_array(sg -> 'properties' -> 'destinationPortRange') 
+        END) AS dport,
+        jsonb_array_elements_text(CASE 
+          WHEN jsonb_array_length(sg -> 'properties' -> 'sourceAddressPrefixes') > 0 
+          THEN (sg -> 'properties' -> 'sourceAddressPrefixes') 
+          ELSE jsonb_build_array(sg -> 'properties' -> 'sourceAddressPrefix') 
+        END) AS sip
+        WHERE sg -> 'properties' ->> 'access' = 'Allow'
+        AND sg -> 'properties' ->> 'direction' = 'Outbound'
+        AND sip IN ('*', '0.0.0.0', '0.0.0.0/0', 'Internet', 'any', '<nw>/0', '/0')
+        AND dport = '*'
+      )
+      SELECT sg_name FROM unrestricted_inbound 
+      UNION SELECT sg_name FROM unrestricted_outbound
+    output_file: "use_of_overly_permissive_rules.csv"
+
+  - name: "Use of Clear Text Protocols"
+    query: >-
+      WITH clear_text_protocols AS (
+        SELECT DISTINCT 
+          name AS sg_name,
+          dport,
+          CASE dport
+            WHEN '20' THEN 'FTP-Data'
+            WHEN '21' THEN 'FTP'
+            WHEN '23' THEN 'Telnet'
+            WHEN '25' THEN 'SMTP'
+            WHEN '69' THEN 'TFTP'
+            WHEN '80' THEN 'HTTP'
+            WHEN '110' THEN 'POP3'
+            WHEN '119' THEN 'NNTP'
+            WHEN '143' THEN 'IMAP'
+            WHEN '161' THEN 'SNMP'
+            WHEN '162' THEN 'SNMP-Trap'
+            WHEN '389' THEN 'LDAP'
+            WHEN '513' THEN 'rlogin'
+            WHEN '514' THEN 'syslog'
+          END AS service_name
+        FROM azure_network_security_group nsg,
+        jsonb_array_elements(security_rules || default_security_rules) sg,
+        jsonb_array_elements_text(CASE 
+          WHEN jsonb_array_length(sg -> 'properties' -> 'destinationPortRanges') > 0 
+          THEN (sg -> 'properties' -> 'destinationPortRanges') 
+          ELSE jsonb_build_array(sg -> 'properties' -> 'destinationPortRange') 
+        END) AS dport
+        WHERE sg -> 'properties' ->> 'access' = 'Allow'
+        AND dport IN ('20', '21', '23', '25', '69', '80', '110', '119', '143', '161', '162', '389', '513', '514')
+      )
+      SELECT sg_name || ',' || dport || ',' || service_name as nsg_port_service 
+      FROM clear_text_protocols
+      ORDER BY sg_name, dport
+    output_file: "use_of_clear_text_protocols.csv"
+
+  - name: "Sensitive Management Ports In Use"
+    query: >-
+      WITH sensitive_management_ports AS (
+        SELECT DISTINCT 
+          name AS sg_name,
+          dport,
+          CASE dport
+            WHEN '22' THEN 'SSH'
+            WHEN '23' THEN 'Telnet'
+            WHEN '80' THEN 'HTTP'
+            WHEN '443' THEN 'HTTPS'
+            WHEN '3389' THEN 'RDP'
+            WHEN '5900' THEN 'VNC'
+            WHEN '21' THEN 'FTP'
+            WHEN '69' THEN 'TFTP'
+            WHEN '389' THEN 'LDAP'
+            WHEN '514' THEN 'syslog'
+            WHEN '137' THEN 'NetBIOS'
+            WHEN '138' THEN 'NetBIOS'
+            WHEN '139' THEN 'NetBIOS'
+            WHEN '445' THEN 'SMB'
+            WHEN '88' THEN 'Kerberos'
+            WHEN '3306' THEN 'MySQL'
+            WHEN '1433' THEN 'MSSQL'
+            WHEN '5432' THEN 'PostgreSQL'
+            WHEN '1521' THEN 'Oracle'
+            WHEN '6379' THEN 'Redis'
+            WHEN '25' THEN 'SMTP'
+            WHEN '465' THEN 'SMTPS'
+            WHEN '110' THEN 'POP3'
+          END AS service_name
+        FROM azure_network_security_group nsg,
+        jsonb_array_elements(security_rules || default_security_rules) sg,
+        jsonb_array_elements_text(CASE 
+          WHEN jsonb_array_length(sg -> 'properties' -> 'destinationPortRanges') > 0 
+          THEN (sg -> 'properties' -> 'destinationPortRanges') 
+          ELSE jsonb_build_array(sg -> 'properties' -> 'destinationPortRange') 
+        END) AS dport,
+        jsonb_array_elements_text(CASE 
+          WHEN jsonb_array_length(sg -> 'properties' -> 'sourceAddressPrefixes') > 0 
+          THEN (sg -> 'properties' -> 'sourceAddressPrefixes') 
+          ELSE jsonb_build_array(sg -> 'properties' -> 'sourceAddressPrefix') 
+        END) AS sip
+        WHERE sg -> 'properties' ->> 'access' = 'Allow'
+        AND sip IN ('*', '0.0.0.0', '0.0.0.0/0', 'Internet', 'any', '<nw>/0', '/0')
+        AND dport IN ('22', '23', '80', '443', '3389', '5900', '21', '69', '389', '514', 
+                     '137', '138', '139', '445', '88', '3306', '1433', '5432', '1521', 
+                     '6379', '25', '465', '110')
+      )
+      SELECT sg_name || ',' || dport || ',' || service_name as nsg_port_service
+      FROM sensitive_management_ports
+      ORDER BY sg_name, dport
+    output_file: "sensitive_management_ports_in_use.csv"

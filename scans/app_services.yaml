@@ -1,0 +1,220 @@
+scans:
+  - name: "Authentication Disabled for Azure Application Service"
+    query: >-
+      SELECT name
+      FROM azure_app_service_web_app
+      WHERE NOT (auth_settings -> 'properties' ->> 'enabled')::boolean
+        OR (auth_settings -> 'properties' ->> 'enabled') IS NULL
+      UNION
+      SELECT name
+      FROM azure_app_service_function_app
+      WHERE NOT (auth_settings -> 'properties' ->> 'enabled')::boolean
+        OR (auth_settings -> 'properties' ->> 'enabled') IS NULL
+    output_file: "authentication_disabled_for_azure_application_service.csv"
+
+  - name: "No HTTP to HTTPS Redirection"
+    query: >-
+      SELECT name 
+      FROM azure_app_service_web_app 
+      WHERE NOT https_only
+    output_file: "no_http_to_https_redirection.csv"
+
+  - name: "Register with Azure Active Directory Disabled on App Service"
+    query: >-
+      SELECT name
+      FROM azure_app_service_web_app
+      WHERE configuration -> 'properties' ->> 'xManagedServiceIdentityId' IS NULL
+        AND configuration -> 'properties' ->> 'managedServiceIdentityId' IS NULL
+      UNION
+      SELECT name
+      FROM azure_app_service_function_app
+      WHERE configuration -> 'properties' ->> 'xManagedServiceIdentityId' IS NULL
+        AND configuration -> 'properties' ->> 'managedServiceIdentityId' IS NULL
+    output_file: "register_with_azure_active_directory_disabled_on_app_service.csv"
+
+  - name: "HTTP/2 Not Enabled"
+    query: >-
+      SELECT name
+      FROM azure_app_service_web_app
+      WHERE (configuration -> 'properties' ->> 'http20Enabled')::boolean = false
+        OR (configuration -> 'properties' ->> 'http20Enabled') IS NULL
+      UNION ALL
+      SELECT name
+      FROM azure_app_service_function_app
+      WHERE (configuration -> 'properties' ->> 'http20Enabled')::boolean = false
+        OR (configuration -> 'properties' ->> 'http20Enabled') IS NULL
+    output_file: "HTTP2_not_enabled.csv"
+
+  - name: "FTP Deployment Lacks SFTP Enforcement"
+    query: >-
+      SELECT name 
+      FROM azure_app_service_web_app 
+      WHERE configuration -> 'properties' ->> 'ftpsState' = 'AllAllowed'
+    output_file: "ftp_deployment_lacks_sftp_enforcement.csv"
+
+  - name: "Client Certificates Not Required (Web & Function Apps)"
+    query: >-
+      SELECT app.name AS resource
+      FROM azure_app_service_web_app AS app, azure_subscription AS sub
+      WHERE NOT app.client_cert_enabled
+        AND sub.subscription_id = app.subscription_id
+      UNION
+      SELECT app.name AS resource
+      FROM azure_app_service_function_app AS app, azure_subscription AS sub
+      WHERE NOT app.client_cert_enabled
+        AND sub.subscription_id = app.subscription_id
+    output_file: "client_certificates_not_required_web_and_function_apps.csv"
+
+  - name: "App Not Using the Latest Version of TLS Encryption (All Apps)"
+    query: >-
+      SELECT DISTINCT resource
+      FROM (
+        -- Web Apps (including API apps)
+        SELECT name AS resource,
+               configuration -> 'properties' ->> 'minTlsVersion' as tls_version
+        FROM azure_app_service_web_app
+        
+        UNION ALL
+        
+        -- Function Apps
+        SELECT name AS resource,
+               configuration -> 'properties' ->> 'minTlsVersion' as tls_version
+        FROM azure_app_service_function_app
+      ) apps
+      WHERE tls_version < '1.2'
+      ORDER BY resource
+    output_file: "app_not_using_the_latest_version_of_tls_encryption_all_apps.csv"
+
+  - name: "Web Apps Running Outdated PHP Versions"
+    query: >-
+      WITH all_web_app AS (
+        SELECT
+          id
+        FROM
+          azure_app_service_web_app
+        WHERE
+          EXISTS (
+            SELECT
+            FROM
+              unnest(regexp_split_to_array(kind, ',')) elem
+            WHERE
+              elem LIKE 'app%'
+          )
+          AND EXISTS (
+            SELECT
+            FROM
+              unnest(regexp_split_to_array(kind, ',')) elem
+            WHERE
+              elem = 'linux'
+          )
+      )
+      SELECT
+        a.name AS resource
+      FROM
+        azure_app_service_web_app AS a
+        LEFT JOIN all_web_app AS b ON a.id = b.id
+      WHERE
+        b.id IS NOT NULL
+        AND configuration -> 'properties' ->> 'linuxFxVersion' LIKE 'PHP%'
+        AND configuration -> 'properties' ->> 'linuxFxVersion' != 'PHP|8.4'
+    output_file: "web_apps_running_outdated_php_versions.csv"
+
+  - name: "Apps Running Outdated Java Versions"
+    query: >-
+      WITH all_java_linux_apps AS (
+        SELECT
+          id,
+          name,
+          configuration
+        FROM
+          azure_app_service_web_app
+        WHERE
+          EXISTS (
+            SELECT
+            FROM unnest(regexp_split_to_array(kind, ',')) elem
+            WHERE elem LIKE 'app%'
+          )
+          AND EXISTS (
+            SELECT
+            FROM unnest(regexp_split_to_array(kind, ',')) elem
+            WHERE elem = 'linux'
+          )
+
+        UNION ALL
+
+        SELECT
+          id,
+          name,
+          configuration
+        FROM
+          azure_app_service_function_app
+        WHERE
+          EXISTS (
+            SELECT
+            FROM unnest(regexp_split_to_array(kind, ',')) elem
+            WHERE elem LIKE 'functionapp%'
+          )
+          AND EXISTS (
+            SELECT
+            FROM unnest(regexp_split_to_array(kind, ',')) elem
+            WHERE elem = 'linux'
+          )
+      )
+      SELECT
+        name AS resource
+      FROM
+        all_java_linux_apps
+      WHERE
+        configuration -> 'properties' ->> 'linuxFxVersion' LIKE 'Java%'
+        AND configuration -> 'properties' ->> 'linuxFxVersion' NOT LIKE '%21'
+    output_file: "apps_running_outdated_java_versions.csv"
+
+  - name: "Apps Running Outdated Python Versions"
+    query: >-
+      WITH all_python_linux_apps AS (
+        SELECT
+          id,
+          name,
+          configuration
+        FROM
+          azure_app_service_web_app
+        WHERE
+          EXISTS (
+            SELECT
+            FROM unnest(regexp_split_to_array(kind, ',')) elem
+            WHERE elem LIKE 'app%'
+          )
+          AND EXISTS (
+            SELECT
+            FROM unnest(regexp_split_to_array(kind, ',')) elem
+            WHERE elem = 'linux'
+          )
+
+        UNION ALL
+
+        SELECT
+          id,
+          name,
+          configuration
+        FROM
+          azure_app_service_function_app
+        WHERE
+          EXISTS (
+            SELECT
+            FROM unnest(regexp_split_to_array(kind, ',')) elem
+            WHERE elem LIKE 'functionapp%'
+          )
+          AND EXISTS (
+            SELECT
+            FROM unnest(regexp_split_to_array(kind, ',')) elem
+            WHERE elem = 'linux'
+          )
+      )
+      SELECT
+        name AS resource
+      FROM
+        all_python_linux_apps
+      WHERE
+        configuration -> 'properties' ->> 'linuxFxVersion' ~* '^python\|'
+        AND configuration -> 'properties' ->> 'linuxFxVersion' != 'Python|3.11'
+    output_file: "apps_running_outdated_python_versions.csv"

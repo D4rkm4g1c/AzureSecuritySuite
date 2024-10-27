@@ -1,0 +1,66 @@
+scans:
+  - name: "Public Access"
+    query: >-
+      SELECT a.name AS resource 
+      FROM azure_key_vault a, azure_subscription sub 
+      WHERE (network_acls IS NULL OR network_acls ->> 'defaultAction' != 'Deny') 
+      AND sub.subscription_id = a.subscription_id
+    output_file: "public_access.csv"
+
+  - name: "Soft Delete"
+    query: >-
+      SELECT name 
+      FROM azure_key_vault 
+      WHERE soft_delete_enabled IS NOT TRUE
+    output_file: "soft_delete_disabled.csv"
+
+  - name: "Purge Protection Status"
+    query: >-
+      SELECT name 
+      FROM azure_key_vault 
+      WHERE purge_protection_enabled IS NOT TRUE
+    output_file: "purge_protection_disabled.csv"
+
+  - name: "Lack of Key Vault Logging"
+    query: >-
+      SELECT name 
+      FROM azure_key_vault 
+      WHERE diagnostic_settings IS NULL
+    output_file: "lack_of_key_vault_logging.csv"
+
+  - name: "Key Vault Keys Without Expiration Date"
+    query: >-
+      WITH vault_type AS (
+        SELECT
+          name,
+          enable_rbac_authorization
+        FROM
+          azure_key_vault
+      )
+      SELECT
+        kvk.id AS resource,
+        CASE
+          WHEN vt.name IS NULL THEN 'skip'
+          WHEN enabled AND expires_at IS NULL THEN 'alarm'
+          ELSE 'ok'
+        END AS status,
+        kvk.vault_name || ' key ' || kvk.name || 
+        CASE
+          WHEN vt.name IS NULL THEN ' vault not found.'
+          WHEN vt.enable_rbac_authorization THEN ' (RBAC) '
+          ELSE ' (non-RBAC) '
+        END ||
+        CASE
+          WHEN enabled AND expires_at IS NULL THEN 'expiration date not set.'
+          WHEN NOT enabled THEN 'disabled.'
+          ELSE 'expiration date set to ' || to_char(expires_at, 'DD-Mon-YYYY') || '.'
+        END AS reason,
+        kvk.resource_group AS resource_group,
+        sub.display_name AS subscription
+      FROM
+        azure_key_vault_key kvk
+        LEFT JOIN vault_type vt ON vt.name = kvk.vault_name,
+        azure_subscription sub
+      WHERE
+        sub.subscription_id = kvk.subscription_id
+    output_file: "key_vault_keys_without_expiration_date.csv"

@@ -1,0 +1,51 @@
+scans:
+  - name: "SQL Server Auditing Not Enabled:"
+    query: >-
+      SELECT s.name AS resource 
+      FROM azure_sql_server s, 
+      jsonb_array_elements(s.server_audit_policy) AS audit 
+      WHERE audit -> 'properties' ->> 'state' = 'Disabled'
+    output_file: "sql_server_auditing_not_enabled.csv"
+
+  - name: "SQL Server Audit Retention Set to Less Than 90 Days:"
+    query: >-
+      SELECT s.name AS resource 
+      FROM azure_sql_server s, 
+      jsonb_array_elements(s.server_audit_policy) AS audit 
+      WHERE (audit -> 'properties' ->> 'retentionDays')::integer < 90
+      AND (audit -> 'properties' ->> 'retentionDays')::integer != 0
+    output_file: "sql_server_audit_retention_set_to_less_than_90_days.csv"
+    
+  - name: "Microsoft Entra Authentication Not Configured for SQL Servers"
+    query: >-
+      SELECT a.name
+      FROM azure_sql_server AS a
+      WHERE a.server_azure_ad_administrator IS NULL 
+         OR a.server_azure_ad_administrator = '[]'
+         OR jsonb_array_length(a.server_azure_ad_administrator) = 0
+    output_file: "microsoft_entra_authentication_not_configured_for_sql_servers.csv"
+
+  - name: "SQL Server Transparent Data Encryption (TDE) Protector Not Encrypted with Customer-Managed Key:"
+    query: >-
+      SELECT s.name AS resource 
+      FROM azure_sql_server s, 
+      jsonb_array_elements(encryption_protector) encryption, 
+      azure_subscription sub 
+      WHERE sub.subscription_id = s.subscription_id 
+      AND encryption ->> 'kind' = 'servicemanaged'
+    output_file: "sql_server_transparent_data_encryption_tde_protector_not_encrypted_with_customer_managed_key.csv"
+
+  - name: "Azure SQL Database Allowing Ingress from ANY IP"
+    query: >-
+      SELECT s.name AS resource 
+      FROM azure_sql_server s 
+      WHERE firewall_rules @> '[{"properties":{"endIpAddress":"0.0.0.0","startIpAddress":"0.0.0.0"}}]' 
+        OR firewall_rules @> '[{"properties":{"endIpAddress":"255.255.255.255","startIpAddress":"0.0.0.0"}}]'
+    output_file: "azure_sql_database_allowing_ingress_from_any_ip.csv"
+
+  - name: "Azure SQL Database Public Network Access Not Disabled"
+    query: >-
+      SELECT s.name AS resource 
+      FROM azure_sql_server s 
+      WHERE public_network_access = 'Enabled'
+    output_file: "azure_sql_database_public_network_access_not_disabled.csv"
