@@ -37,22 +37,7 @@ AzureSecuritySuite is a comprehensive tool designed to enhance the security post
 
    Follow the official installation instructions for [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) and [Steampipe](https://steampipe.io/downloads).
 
-## Configuration
 
-1. **Edit the Configuration File:**
-
-   Update the `config.json` file with your Azure tenant and subscription details:
-
-   ```json
-   {
-       "logging_level": "INFO",
-       "output_directory": "./output",
-       "azure": {
-           "tenant_id": "your-tenant-id",
-           "subscription_id": "your-subscription-id"
-       }
-   }
-   ```
 
 ## Usage
 
@@ -61,6 +46,8 @@ AzureSecuritySuite is a comprehensive tool designed to enhance the security post
    ```bash
    python Azure.py
    ```
+
+   - Loging using the menu as well as selecting the correct subscriptions for review. 
 
 2. **Navigate the Menu:**
 
@@ -88,4 +75,4 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 ## Contact
 
-For questions or support, please contact [your-email@example.com](mailto:your-email@example.com).
+For questions or support, please contact me via Linkedin.
