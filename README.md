@@ -24,6 +24,7 @@ AzureSecuritySuite is a comprehensive tool designed to enhance the security post
 1. **Clone the Repository:**
 
    ```bash
+   git clone https://github.com/D4rkm4g1c/AzureSecuritySuite.git
    cd azure-security-scanner
    ```
 
