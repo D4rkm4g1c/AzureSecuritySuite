@@ -182,7 +182,8 @@ def create_folder_structure(tenant_name, subscription_name, subscription_id):
         "SQLDatabases", 
         "PostgreSQLDatabases", 
         "KeyVaults",
-        "MySQLDatabases"
+        "MySQLDatabases",
+        "CosmosDB"
     ]
     
     resource_folders = {}
@@ -416,10 +417,53 @@ def scan_postgresql_databases(resource_folder):
 def scan_mysql_databases(resource_folder):
     """Run Steampipe scans for MySQL Databases."""
     scans = [
-        ("Placeholder for MySQL Scan 1", "SELECT 'Placeholder for MySQL Scan 1';", "mysql_scan_1.csv"),
-        ("Placeholder for MySQL Scan 2", "SELECT 'Placeholder for MySQL Scan 2';", "mysql_scan_2.csv")
+        ("Scan for Non-compliant TLS Versions", """
+        WITH tls_version AS (
+            SELECT id
+            FROM azure_mysql_flexible_server,
+            jsonb_array_elements(flexible_server_configurations) AS config
+            WHERE config ->> 'Name' = 'tls_version'
+            AND config -> 'ConfigurationProperties' ->> 'value' = 'TLSv1.2,TLSv1.3'
+        ),
+        noncompliant_tls_enforcement AS (
+            SELECT s.id AS resource
+            FROM azure_mysql_server AS s,
+            azure_subscription AS sub
+            WHERE minimal_tls_version != 'TLS1_2'
+            AND sub.subscription_id = s.subscription_id
+        ),
+        noncompliant_flexible_server_tls AS (
+            SELECT s.id AS resource
+            FROM azure_mysql_flexible_server AS s
+            LEFT JOIN tls_version AS a ON s.id = a.id,
+            azure_subscription AS sub
+            WHERE a.id IS NULL
+            AND sub.subscription_id = s.subscription_id
+        )
+        SELECT DISTINCT resource
+        FROM (
+            SELECT resource FROM noncompliant_tls_enforcement
+            UNION
+            SELECT resource FROM noncompliant_flexible_server_tls
+        ) AS combined_results;
+        """, "tls_noncompliant_servers.csv")
     ]
     scan_menu(resource_folder, scans, "MySQL Databases Scanning Menu")
+
+def scan_cosmos_db(resource_folder):
+    """Run Steampipe scans for Cosmos DB."""
+    scans = [
+        ("Scan for Public Network Access Enabled", """
+        SELECT a.id AS resource
+        FROM azure_cosmosdb_account AS a,
+        azure_subscription AS sub
+        WHERE public_network_access = 'Enabled'
+        AND is_virtual_network_filter_enabled = 'false'
+        AND jsonb_array_length(ip_rules) = 0
+        AND sub.subscription_id = a.subscription_id;
+        """, "cosmosdb_no_firewall.csv")
+    ]
+    scan_menu(resource_folder, scans, "Cosmos DB Scanning Menu")
 
 def run_all_scans(resource_folders):
     """Run all Steampipe scans for all resource types automatically."""
@@ -433,7 +477,8 @@ def run_all_scans(resource_folders):
         ("SQL Databases", scan_sql_databases, "SQLDatabases"),
         ("Key Vaults", scan_key_vaults, "KeyVaults"),
         ("PostgreSQL Databases", scan_postgresql_databases, "PostgreSQLDatabases"),
-        ("MySQL Databases", scan_mysql_databases, "MySQLDatabases")
+        ("MySQL Databases", scan_mysql_databases, "MySQLDatabases"),
+        ("Cosmos DB", scan_cosmos_db, "CosmosDB")
     ]
 
     for idx, (name, scan_func, folder_key) in enumerate(resource_types, 1):
@@ -458,6 +503,7 @@ def main_menu(resource_folders):
         ("Scan Key Vaults", scan_key_vaults, "KeyVaults"),
         ("Scan PostgreSQL Databases", scan_postgresql_databases, "PostgreSQLDatabases"),
         ("Scan MySQL Databases", scan_mysql_databases, "MySQLDatabases"),
+        ("Scan Cosmos DB", scan_cosmos_db, "CosmosDB"),
         ("Run All Scans", run_all_scans, None),
         ("Exit", None, None)
     ]
