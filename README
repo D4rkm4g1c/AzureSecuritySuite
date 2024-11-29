@@ -1,8 +1,8 @@
-# Azure Security Scanner
+# Azure Security Scanner (AzureSecuritySuite)
 
 ## Overview
 
-The Azure Security Scanner is a command-line tool designed for pentest companies to automate the scanning of Azure resources for security vulnerabilities and misconfigurations. It leverages Steampipe to query Azure resources and provides detailed reports in CSV format.
+AzureSecuritySuite is a command-line tool designed for pentest companies to automate the scanning of Azure resources for security vulnerabilities and misconfigurations. It leverages Steampipe to query Azure resources and provides detailed reports in CSV format.
 
 ## Features
 
