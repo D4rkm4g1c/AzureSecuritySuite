@@ -5,6 +5,7 @@ import subprocess
 import time
 import json
 import sys
+import argparse
 from colorama import init, Fore, Style
 import logging
 
@@ -27,7 +28,6 @@ def print_banner():
     clear_screen()
     terminal_width = shutil.get_terminal_size().columns
     ascii_art = r"""
-
      ___                           ___                                                              
     (   )                         (   )                                                             
   .-.| |       ,--.    ___ .-.     | |   ___    ___ .-. .-.        ,--.     .--.    .--.    .--.    
@@ -41,19 +41,42 @@ def print_banner():
  `.__,'        (___)  (___)       (___ ) (___) (___)(___)(___)     (___)   `.__. |  (___)  `.__,'   
                                                                            ( `-' ;                  
                                                                             `.__.                   
+    
 
-    """
+.______    _______ .__   __. .___________. _______     _______.___________.   .______    _______   ______   .______    __       _______ 
+|   _  \  |   ____||  \ |  | |           ||   ____|   /       |           |   |   _  \  |   ____| /  __  \  |   _  \  |  |     |   ____|
+|  |_)  | |  |__   |   \|  | `---|  |----`|  |__     |   (----`---|  |----`   |  |_)  | |  |__   |  |  |  | |  |_)  | |  |     |  |__   
+|   ___/  |   __|  |  . `  |     |  |     |   __|     \   \       |  |        |   ___/  |   __|  |  |  |  | |   ___/  |  |     |   __|  
+|  |      |  |____ |  |\   |     |  |     |  |____.----)   |      |  |        |  |      |  |____ |  `--'  | |  |      |  `----.|  |____ 
+| _|      |_______||__| \__|     |__|     |_______|_______/       |__|        | _|      |_______| \______/  | _|      |_______||_______|
+                                                                                                                                            
+    """.strip().splitlines()
+
+    # Calculate the width of the ASCII art
+    ascii_width = max(len(line) for line in ascii_art)
+    border_width = max(ascii_width, terminal_width)
+
+    # Create the top border
+    top_border = f"{Fore.CYAN}╔{'═' * (border_width - 2)}╗{Style.RESET_ALL}"
+    bottom_border = f"{Fore.CYAN}╚{'═' * (border_width - 2)}╝{Style.RESET_ALL}"
+
+    # Center each line of the ASCII art
+    centered_ascii_art = "\n".join(line.center(border_width) for line in ascii_art)
+
+    # Print the banner
     banner = f"""
-{Fore.CYAN}{ascii_art.center(terminal_width)}{Style.RESET_ALL}
+{top_border}
+{centered_ascii_art}
+{bottom_border}
 {Fore.CYAN}╔{'═' * (terminal_width-2)}╗
 ║{' ' * (terminal_width-2)}║
 ║{Style.BRIGHT + Fore.MAGENTA + ' Welcome to '.center(terminal_width-2)}║
-║{Style.BRIGHT + Fore.YELLOW + ' [Your Company Name] '.center(terminal_width-2)}║
-║{Style.BRIGHT + Fore.YELLOW + ' Azure Security Scanner '.center(terminal_width-2)}║
+║{Style.BRIGHT + Fore.YELLOW + ' Pentest People '.center(terminal_width-2)}║
+║{Style.BRIGHT + Fore.YELLOW + ' Azure Security Scanner (AzureSecuritySuite) '.center(terminal_width-2)}║
 ║{' ' * (terminal_width-2)}║
 ║{Style.BRIGHT + Fore.GREEN + 'Created by James Round (Consultant)'.center(terminal_width-2)}║
 ║{' ' * (terminal_width-2)}║
-║{Style.BRIGHT + Fore.GREEN + ' Version 1.0 '.center(terminal_width-2)}║
+║{Style.BRIGHT + Fore.GREEN + f' Version 1.0 - {time.strftime("%Y-%m-%d")}'.center(terminal_width-2)}║
 ║{' ' * (terminal_width-2)}║
 ╚{'═' * (terminal_width-2)}╝{Style.RESET_ALL}
 """
@@ -168,7 +191,7 @@ def create_folder_structure(tenant_name, subscription_name, subscription_id):
         os.makedirs(resource_folder, exist_ok=True)
         resource_folders[resource_type] = resource_folder
 
-    print("Folder structure created successfully.")
+    print(f"{Fore.GREEN}Folder structure created successfully.{Style.RESET_ALL}")
     return resource_folders
 
 def scan_menu(resource_folder, scans, title):
@@ -182,16 +205,16 @@ def scan_menu(resource_folder, scans, title):
                 run_steampipe_query(query, output_file)
                 time.sleep(5)  # Wait for 5 seconds before clearing the screen
             elif choice == len(scans) + 1:
-                print(f"\nRunning all {title} scans...")
+                print(f"\n{Fore.CYAN}Running all {title} scans...{Style.RESET_ALL}")
                 for scan in scans:
                     query, output_file = scan[1], f"{resource_folder}/{scan[2]}"
                     run_steampipe_query(query, output_file)
-                print(f"All {title} scans completed.")
+                print(f"{Fore.GREEN}All {title} scans completed.{Style.RESET_ALL}")
                 time.sleep(5)  # Wait for 5 seconds before clearing the screen
             elif choice == 0:
                 break
         else:
-            print("Invalid selection. Please try again.")
+            print(f"{Fore.RED}Invalid selection. Please try again.{Style.RESET_ALL}")
 
 def scan_storage_accounts(resource_folder):
     """Run Steampipe scans for storage accounts."""
@@ -400,33 +423,28 @@ def scan_mysql_databases(resource_folder):
 
 def run_all_scans(resource_folders):
     """Run all Steampipe scans for all resource types automatically."""
-    print("\nInitiating comprehensive scan for all resource types...")
+    print(f"\n{Fore.CYAN}Initiating comprehensive scan for all resource types...{Style.RESET_ALL}")
 
-    print("\nScanning Virtual Machines...")
-    scan_virtual_machines(resource_folders["VirtualMachines"])
+    resource_types = [
+        ("Virtual Machines", scan_virtual_machines, "VirtualMachines"),
+        ("Storage Accounts", scan_storage_accounts, "StorageAccounts"),
+        ("App Services", scan_app_services, "AppServices"),
+        ("Network Security Groups", scan_network_security_groups, "NetworkSecurityGroups"),
+        ("SQL Databases", scan_sql_databases, "SQLDatabases"),
+        ("Key Vaults", scan_key_vaults, "KeyVaults"),
+        ("PostgreSQL Databases", scan_postgresql_databases, "PostgreSQLDatabases"),
+        ("MySQL Databases", scan_mysql_databases, "MySQLDatabases")
+    ]
 
-    print("\nScanning Storage Accounts...")
-    scan_storage_accounts(resource_folders["StorageAccounts"])
+    for idx, (name, scan_func, folder_key) in enumerate(resource_types, 1):
+        print(f"\n{Fore.CYAN}Scanning {name}...{Style.RESET_ALL}")
+        scan_func(resource_folders[folder_key])
+        print(f"{Fore.GREEN}✓ {name} scan completed.{Style.RESET_ALL}")
+        # Simple progress bar
+        progress = f"[{'#' * idx}{'.' * (len(resource_types) - idx)}] {idx}/{len(resource_types)}"
+        print(f"{Fore.YELLOW}{progress}{Style.RESET_ALL}")
 
-    print("\nScanning App Services...")
-    scan_app_services(resource_folders["AppServices"])
-
-    print("\nScanning Network Security Groups...")
-    scan_network_security_groups(resource_folders["NetworkSecurityGroups"])
-
-    print("\nScanning SQL Databases...")
-    scan_sql_databases(resource_folders["SQLDatabases"])
-
-    print("\nScanning Key Vaults...")
-    scan_key_vaults(resource_folders["KeyVaults"])
-
-    print("\nScanning PostgreSQL Databases...")
-    scan_postgresql_databases(resource_folders["PostgreSQLDatabases"])
-
-    print("\nScanning MySQL Databases...")
-    scan_mysql_databases(resource_folders["MySQLDatabases"])
-
-    print("\nComprehensive scan completed.")
+    print(f"\n{Fore.GREEN}Comprehensive scan completed.{Style.RESET_ALL}")
     time.sleep(5)  # Wait for 5 seconds before clearing the screen
 
 def main_menu(resource_folders):
@@ -455,10 +473,10 @@ def main_menu(resource_folders):
                     else:
                         options[choice - 1][1](resource_folders)
                 else:
-                    print("Exiting the script. Thank you for using our service.")
+                    print(f"{Fore.CYAN}Exiting the script. Thank you for using our service.{Style.RESET_ALL}")
                     break
         else:
-            print("Invalid selection. Please try again.")
+            print(f"{Fore.RED}Invalid selection. Please try again.{Style.RESET_ALL}")
 
 def check_azure_login():
     """Check if already logged into Azure."""
@@ -470,7 +488,7 @@ def check_azure_login():
 
 def clear_account_credentials():
     """Clear Azure cached account credentials."""
-    print("Clearing Azure cached credentials...")
+    print(f"{Fore.CYAN}Clearing Azure cached credentials...{Style.RESET_ALL}")
     os.system("az account clear")
 
 def initial_menu():
@@ -494,45 +512,45 @@ def initial_menu():
         if choice == "1":
             logging.info("Clearing Azure cached credentials.")
             os.system("az account clear")
-            print("Credentials cleared.")
+            print(f"{Fore.GREEN}Credentials cleared.{Style.RESET_ALL}")
         elif choice == "2":
             logging.info("Logging into Azure.")
             subprocess.run(["az", "login", "--output", "none"], check=True)
-            print("Login completed.")
+            print(f"{Fore.GREEN}Login completed.{Style.RESET_ALL}")
         elif choice == "3":
             logging.info("Listing Azure subscriptions.")
             subscriptions = json.loads(subprocess.run(["az", "account", "list", "--query", "[].{id:id, name:name}", "-o", "json"], capture_output=True, text=True, check=True).stdout)
-            print("\nAvailable subscriptions:")
+            print(f"\n{Fore.CYAN}Available subscriptions:{Style.RESET_ALL}")
             for idx, sub in enumerate(subscriptions):
-                print(f"{idx + 1}. {sub['name']} ({sub['id']})")
+                print(f"{Fore.GREEN}{idx + 1}.{Style.RESET_ALL} {sub['name']} ({sub['id']})")
 
-            sub_choice = int(input("Select a subscription by number: ")) - 1
+            sub_choice = int(input(f"{Fore.YELLOW}Select a subscription by number: {Style.RESET_ALL}")) - 1
             logging.info(f"User selected subscription: {sub_choice}")
             if 0 <= sub_choice < len(subscriptions):
                 subscription_id = subscriptions[sub_choice]["id"]
                 subscription_name = subscriptions[sub_choice]["name"]
                 subprocess.run(["az", "account", "set", "--subscription", subscription_id], check=True)
-                print(f"Subscription set to: {subscription_name} ({subscription_id})")
+                print(f"{Fore.GREEN}Subscription set to: {subscription_name} ({subscription_id}){Style.RESET_ALL}")
                 
                 tenant_details = json.loads(subprocess.run(["az", "account", "show"], capture_output=True, text=True, check=True).stdout)
                 tenant_name = tenant_details['tenantId']
                 resource_folders = create_folder_structure(tenant_name, subscription_name, subscription_id)
             else:
-                print("Invalid selection.")
+                print(f"{Fore.RED}Invalid selection.{Style.RESET_ALL}")
         elif choice == "4":
             if not check_azure_login():
-                print("Please login first (Option 2)")
+                print(f"{Fore.RED}Please login first (Option 2){Style.RESET_ALL}")
                 continue
             if resource_folders is None:
-                print("Please select a subscription first (Option 3)")
+                print(f"{Fore.RED}Please select a subscription first (Option 3){Style.RESET_ALL}")
                 continue
             main_menu(resource_folders)
         elif choice == "5":
             logging.info("Exiting script.")
-            print("Exiting script. Thank you for using our service.")
+            print(f"{Fore.CYAN}Exiting script. Thank you for using our service.{Style.RESET_ALL}")
             sys.exit(0)
         else:
-            print("Invalid selection. Please try again.")
+            print(f"{Fore.RED}Invalid selection. Please try again.{Style.RESET_ALL}")
 
 def main():
     """Main function to start the script."""
@@ -540,5 +558,8 @@ def main():
     initial_menu()
 
 if __name__ == "__main__":
-    main()
+    # Argument parsing
+    parser = argparse.ArgumentParser(description='Azure Security Scanner')
+    args = parser.parse_args()
 
+    main()
