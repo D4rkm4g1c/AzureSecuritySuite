@@ -71,7 +71,7 @@ def print_banner():
 {Fore.CYAN}╔{'═' * (terminal_width-2)}╗
 ║{' ' * (terminal_width-2)}║
 ║{Style.BRIGHT + Fore.MAGENTA + ' Welcome to '.center(terminal_width-2)}║
-║{Style.BRIGHT + Fore.YELLOW + ' Pentest People '.center(terminal_width-2)}║
+║{Style.BRIGHT + Fore.YELLOW + " Pentest People's ".center(terminal_width-2)}║
 ║{Style.BRIGHT + Fore.YELLOW + ' Azure Security Scanner (AzureSecuritySuite) '.center(terminal_width-2)}║
 ║{' ' * (terminal_width-2)}║
 ║{Style.BRIGHT + Fore.GREEN + 'Created by James Round (Consultant)'.center(terminal_width-2)}║
