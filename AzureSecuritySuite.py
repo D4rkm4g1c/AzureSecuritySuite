@@ -241,7 +241,7 @@ def scan_virtual_machines(resource_folder):
 def scan_key_vaults(resource_folder):
     """Run Steampipe scans for Key Vault misconfigurations."""
     scans = [
-        ("Scan Network ACLs Configuration", "SELECT name, network_acls FROM azure_key_vault WHERE network_acls IS NOT NULL", "network_acls.csv"),
+        ("Scan Network ACLs Configuration", "SELECT a.id AS resource FROM azure_key_vault a, azure_subscription sub WHERE (network_acls IS NULL OR network_acls ->> 'defaultAction' != 'Deny') AND sub.subscription_id = a.subscription_id", "public_network_enabled_key_vaults.csv"),
         ("Scan Soft Delete Status", "SELECT name FROM azure_key_vault WHERE soft_delete_enabled IS NOT TRUE", "soft_delete_disabled.csv"),
         ("Scan Purge Protection Status", "SELECT name FROM azure_key_vault WHERE purge_protection_enabled IS NOT TRUE", "purge_protection_disabled.csv"),
         ("Scan Diagnostic Settings", "SELECT name FROM azure_key_vault WHERE diagnostic_settings IS NULL", "missing_diagnostics.csv")
