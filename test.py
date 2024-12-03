@@ -56,14 +56,14 @@ def print_banner():
     ascii_width = max(len(line) for line in ascii_art)
     border_width = max(ascii_width, terminal_width)
 
-    # Create the top and bottom borders
+    # Create the top border
     top_border = f"{Fore.CYAN}╔{'═' * (border_width - 2)}╗{Style.RESET_ALL}"
     bottom_border = f"{Fore.CYAN}╚{'═' * (border_width - 2)}╝{Style.RESET_ALL}"
 
     # Center each line of the ASCII art
     centered_ascii_art = "\n".join(line.center(border_width) for line in ascii_art)
 
-    # Print the banner with centered text and color
+    # Print the banner
     banner = f"""
 {top_border}
 {centered_ascii_art}
@@ -76,7 +76,7 @@ def print_banner():
 ║{' ' * (terminal_width-2)}║
 ║{Style.BRIGHT + Fore.GREEN + 'Created by James Round (Consultant)'.center(terminal_width-2)}║
 ║{' ' * (terminal_width-2)}║
-║{Style.BRIGHT + Fore.GREEN + f' Version 1.0 - 2024-12-03'.center(terminal_width-2)}║
+║{Style.BRIGHT + Fore.GREEN + f' Version 1.0 - {time.strftime("%Y-%m-%d")}'.center(terminal_width-2)}║
 ║{' ' * (terminal_width-2)}║
 ╚{'═' * (terminal_width-2)}╝{Style.RESET_ALL}
 """
@@ -241,29 +241,18 @@ def scan_virtual_machines(resource_folder):
 def scan_key_vaults(resource_folder):
     """Run Steampipe scans for Key Vault misconfigurations."""
     scans = [
-        ("Scan Network ACLs Configuration", "SELECT a.name AS resource FROM azure_key_vault a, azure_subscription sub WHERE (network_acls IS NULL OR network_acls ->> 'defaultAction' != 'Deny') AND sub.subscription_id = a.subscription_id", "public_network_enabled_key_vaults.csv"),
+        ("Scan Network ACLs Configuration", "SELECT name, network_acls FROM azure_key_vault WHERE network_acls IS NOT NULL", "network_acls.csv"),
         ("Scan Soft Delete Status", "SELECT name FROM azure_key_vault WHERE soft_delete_enabled IS NOT TRUE", "soft_delete_disabled.csv"),
         ("Scan Purge Protection Status", "SELECT name FROM azure_key_vault WHERE purge_protection_enabled IS NOT TRUE", "purge_protection_disabled.csv"),
-        ("Scan Diagnostic Settings", "SELECT name FROM azure_key_vault WHERE diagnostic_settings IS NULL", "missing_diagnostics.csv"),
-        ("Scan Soft Delete Disabled in Key Vaults", 
-         """
-         SELECT 
-           kv.name AS key_vault_name
-         FROM 
-           azure_key_vault AS kv
-           JOIN azure_subscription AS sub ON sub.subscription_id = kv.subscription_id
-         WHERE 
-           soft_delete_enabled = false
-         """, 
-         "key_vault_soft_delete_disabled.csv")
+        ("Scan Diagnostic Settings", "SELECT name FROM azure_key_vault WHERE diagnostic_settings IS NULL", "missing_diagnostics.csv")
     ]
     scan_menu(resource_folder, scans, "Key Vault Scanning Menu")
 
 def scan_app_services(resource_folder):
     """Run Steampipe scans for App Services."""
     scans = [
-        ("Scan Web App Auth Settings", "SELECT name FROM azure_app_service_web_app AS app", "web_app_auth_settings.csv"),
-        ("Scan Function App Auth Settings", "SELECT name FROM azure_app_service_function_app", "function_app_auth_settings.csv"),
+        ("Scan Web App Auth Settings", "SELECT name, auth_settings FROM azure_app_service_web_app AS app", "web_app_auth_settings.csv"),
+        ("Scan Function App Auth Settings", "SELECT name, auth_settings FROM azure_app_service_function_app", "function_app_auth_settings.csv"),
         ("Scan Web Apps for HTTPS Only", "SELECT name FROM azure_app_service_web_app WHERE NOT https_only", "web_app_https_only.csv"),
         ("Scan Function Apps for Client Certs", "SELECT app.name FROM azure_app_service_function_app AS app WHERE NOT app.client_cert_enabled", "function_app_client_cert.csv"),
         ("Scan Web Apps for Managed Identity", "SELECT app.name FROM azure_app_service_web_app AS app WHERE app.identity = '{}'", "web_app_managed_identity.csv"),
@@ -272,21 +261,7 @@ def scan_app_services(resource_folder):
         WHERE (configuration -> 'properties' ->> 'http20Enabled')::boolean = false
         OR (configuration -> 'properties' ->> 'http20Enabled') IS NULL
         """, "web_app_http2.csv"),
-        ("Scan Web Apps for FTPS State", "SELECT name FROM azure_app_service_web_app WHERE configuration -> 'properties' ->> 'ftpsState' = 'AllAllowed'", "web_app_ftps_state.csv"),
-        ("Scan Web Apps with No Client Cert", "SELECT app.name AS resource FROM azure_app_service_web_app AS app, azure_subscription AS sub WHERE NOT client_cert_enabled AND sub.subscription_id = app.subscription_id", "app_names_no_client_cert.csv"),
-        ("Scan Web Apps for TLS Version < 1.2", "SELECT app.name AS resource FROM azure_app_service_web_app AS app, azure_subscription AS sub WHERE (configuration -> 'properties' ->> 'minTlsVersion') < '1.2' AND sub.subscription_id = app.subscription_id", "app_names_tls_v1_2.csv"),
-        ("Scan Function Apps for TLS Version < 1.2", "SELECT app.name AS resource FROM azure_app_service_function_app AS app, azure_subscription AS sub WHERE (configuration -> 'properties' ->> 'minTlsVersion') < '1.2' AND sub.subscription_id = app.subscription_id", "function_app_names_tls_v1_2.csv"),
-        ("Scan API Apps for TLS Version Check", """
-        WITH all_api_app AS (
-            SELECT id, name FROM azure_app_service_web_app WHERE EXISTS (
-                SELECT 1 FROM unnest(regexp_split_to_array(kind, ',')) elem WHERE elem LIKE '%api'
-            )
-        )
-        SELECT a.name AS app_name
-        FROM azure_app_service_web_app AS a
-        LEFT JOIN all_api_app AS b ON a.id = b.id
-        WHERE b.id IS NOT NULL AND (configuration -> 'properties' ->> 'minTlsVersion') < '1.2'
-        """, "api_app_tls_check.csv")
+        ("Scan Web Apps for FTPS State", "SELECT name FROM azure_app_service_web_app WHERE configuration -> 'properties' ->> 'ftpsState' = 'AllAllowed'", "web_app_ftps_state.csv")
     ]
     scan_menu(resource_folder, scans, "App Services Scanning Menu")
 
@@ -351,69 +326,7 @@ def scan_network_security_groups(resource_folder):
           sg_name
         FROM
           unrestricted_outbound
-        """, "unrestricted_rules.csv"),
-        ("Scan for Clear Text Protocols", """
-        WITH clear_text_protocols AS (
-          SELECT DISTINCT
-            name AS sg_name,
-            sg -> 'properties' ->> 'direction' AS direction,
-            dport
-          FROM
-            azure_network_security_group nsg,
-            jsonb_array_elements(security_rules || default_security_rules) sg,
-            jsonb_array_elements_text(
-              CASE
-                WHEN jsonb_array_length(sg -> 'properties' -> 'destinationPortRanges') > 0 THEN (sg -> 'properties' -> 'destinationPortRanges')
-                ELSE jsonb_build_array(sg -> 'properties' -> 'destinationPortRange')
-              END
-            ) AS dport
-          WHERE
-            sg -> 'properties' ->> 'access' = 'Allow'
-            AND dport IN ('20', '21', '23', '25', '69', '80', '110', '119', '143', '161', '162', '389', '513', '514')
-        )
-        SELECT
-          sg_name,
-          direction,
-          dport
-        FROM
-          clear_text_protocols
-        """, "clear_text_protocols.csv"),
-        ("Scan for Sensitive Management Ports", """
-        WITH sensitive_management_ports AS (
-          SELECT DISTINCT
-            name AS sg_name,
-            sg -> 'properties' ->> 'direction' AS direction,
-            dport
-          FROM
-            azure_network_security_group nsg,
-            jsonb_array_elements(security_rules || default_security_rules) sg,
-            jsonb_array_elements_text(
-              CASE
-                WHEN jsonb_array_length(sg -> 'properties' -> 'destinationPortRanges') > 0 THEN (sg -> 'properties' -> 'destinationPortRanges')
-                ELSE jsonb_build_array(sg -> 'properties' -> 'destinationPortRange')
-              END
-            ) AS dport,
-            jsonb_array_elements_text(
-              CASE
-                WHEN jsonb_array_length(sg -> 'properties' -> 'sourceAddressPrefixes') > 0 THEN (sg -> 'properties' -> 'sourceAddressPrefixes')
-                ELSE jsonb_build_array(sg -> 'properties' -> 'sourceAddressPrefix')
-              END
-            ) AS sip
-          WHERE
-            sg -> 'properties' ->> 'access' = 'Allow'
-            AND sip IN ('*', '0.0.0.0', '0.0.0.0/0', 'Internet', 'any', '<nw>/0', '/0')
-            AND dport IN (
-              '22', '23', '80', '443', '3389', '5900', '21', '69', '389', '514', '137', '138', '139', '445', '88',
-              '3306', '1433', '5432', '1521', '6379', '25', '465', '110'
-            )
-        )
-        SELECT
-          sg_name,
-          direction,
-          dport
-        FROM
-          sensitive_management_ports
-        """, "sensitive_management_ports.csv")
+        """, "unrestricted_rules.csv")
     ]
     scan_menu(resource_folder, scans, "Network Security Groups Scanning Menu")
 
@@ -443,7 +356,7 @@ def scan_sql_databases(resource_folder):
         FROM azure_sql_server s
         WHERE public_network_access = 'Enabled';
         """, "sql_server_public_network_access_enabled.csv"),
-        ("Scan for Azure AD Authentication Not Enabled", """
+        ("Scan for Azure AD Authentication Enabled", """
         WITH sever_with_ad_admin AS (
           SELECT DISTINCT a.id
           FROM azure_sql_server AS a,
@@ -453,8 +366,8 @@ def scan_sql_databases(resource_folder):
         SELECT a.name AS resource
         FROM azure_sql_server AS a
         LEFT JOIN sever_with_ad_admin AS s ON a.id = s.id
-        WHERE s.id IS NULL;
-        """, "sql_server_azure_ad_auth_not_enabled.csv"),
+        WHERE s.id IS NOT NULL;
+        """, "sql_server_azure_ad_auth_enabled.csv"),
         ("Scan for TDE Protector Not Using Customer-Managed Key", """
         SELECT s.name AS resource
         FROM azure_sql_server s,
