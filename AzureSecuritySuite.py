@@ -242,20 +242,9 @@ def scan_key_vaults(resource_folder):
     """Run Steampipe scans for Key Vault misconfigurations."""
     scans = [
         ("Scan Network ACLs Configuration", "SELECT a.name AS resource FROM azure_key_vault a, azure_subscription sub WHERE (network_acls IS NULL OR network_acls ->> 'defaultAction' != 'Deny') AND sub.subscription_id = a.subscription_id", "public_network_enabled_key_vaults.csv"),
-        ("Scan Soft Delete Status", "SELECT name FROM azure_key_vault WHERE soft_delete_enabled IS NOT TRUE", "soft_delete_disabled.csv"),
+        ("Scan Soft Delete Disabled", "SELECT name FROM azure_key_vault WHERE soft_delete_enabled IS NOT TRUE", "soft_delete_disabled.csv"),
         ("Scan Purge Protection Status", "SELECT name FROM azure_key_vault WHERE purge_protection_enabled IS NOT TRUE", "purge_protection_disabled.csv"),
         ("Scan Diagnostic Settings", "SELECT name FROM azure_key_vault WHERE diagnostic_settings IS NULL", "missing_diagnostics.csv"),
-        ("Scan Soft Delete Disabled in Key Vaults", 
-         """
-         SELECT 
-           kv.name AS key_vault_name
-         FROM 
-           azure_key_vault AS kv
-           JOIN azure_subscription AS sub ON sub.subscription_id = kv.subscription_id
-         WHERE 
-           soft_delete_enabled = false
-         """, 
-         "key_vault_soft_delete_disabled.csv")
     ]
     scan_menu(resource_folder, scans, "Key Vault Scanning Menu")
 
