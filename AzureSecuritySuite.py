@@ -579,7 +579,7 @@ def check_for_updates():
     """Check if there is a newer version of the script available on GitHub."""
     try:
         # URL to the raw version file on GitHub
-        version_url = "https://raw.githubusercontent.com/yourusername/yourrepository/main/version.txt"
+        version_url = "https://raw.githubusercontent.com/D4rkm4g1c/AzureSecuritySuite/refs/heads/main/version.txt"
         
         # Fetch the latest version from GitHub
         response = requests.get(version_url)
