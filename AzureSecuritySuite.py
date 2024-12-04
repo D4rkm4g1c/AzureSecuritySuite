@@ -609,14 +609,31 @@ def update_script():
         response = requests.get(script_url, stream=True)
         response.raise_for_status()
         
-        # Save the new script
-        with open(__file__, 'wb') as f:
-            shutil.copyfileobj(response.raw, f)
+        # Create a temporary file for the new version
+        temp_file = __file__ + '.new'
+        backup_file = __file__ + '.backup'
         
-        print(f"{Fore.GREEN}Script updated successfully to the latest version.{Style.RESET_ALL}")
+        # Download to temporary file
+        with open(temp_file, 'wb') as f:
+            shutil.copyfileobj(response.raw, f)
+            
+        # Create backup of current version
+        shutil.copy2(__file__, backup_file)
+        
+        # Replace the old file with the new version
+        shutil.move(temp_file, __file__)
+        
+        print(f"{Fore.GREEN}Script updated successfully to the latest version. Backup created at {backup_file}{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}Please restart the script to use the new version.{Style.RESET_ALL}")
         
     except requests.RequestException as e:
         print(f"{Fore.RED}Failed to update the script: {str(e)}{Style.RESET_ALL}")
+        if os.path.exists(temp_file):
+            os.remove(temp_file)
+    except Exception as e:
+        print(f"{Fore.RED}An error occurred during update: {str(e)}{Style.RESET_ALL}")
+        if os.path.exists(temp_file):
+            os.remove(temp_file)
 
 def main():
     """Main function to start the script."""
