@@ -8,16 +8,25 @@ import sys
 import argparse
 from colorama import init, Fore, Style
 import logging
+from datetime import datetime
 
 # Initialize colorama for cross-platform color support
 init(autoreset=True)
 
-# Configure logging
-logging.basicConfig(
-    filename='azure_scanner.log',
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+# Create logs directory if it doesn't exist
+log_dir = 'azuresecuritysuitelogs'
+os.makedirs(log_dir, exist_ok=True)
+
+def configure_logging(subscription_name):
+    """Configure logging with a dynamic filename based on date, time, and subscription."""
+    log_filename = datetime.now().strftime(f"%Y-%m-%d_%H-%M-%S_{subscription_name}.log")
+    log_filepath = os.path.join(log_dir, log_filename)
+    
+    logging.basicConfig(
+        filename=log_filepath,
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s'
+    )
 
 def clear_screen():
     """Clear the terminal screen based on OS."""

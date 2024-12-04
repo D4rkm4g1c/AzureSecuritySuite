@@ -2,15 +2,24 @@
 
 ## Overview
 
-AzureSecuritySuite is a comprehensive tool designed to enhance the security posture of your Azure environment. This suite provides automated scanning capabilities across various Azure resources, including Virtual Machines, Storage Accounts, App Services, Network Security Groups, SQL Databases, Key Vaults, PostgreSQL Databases, and MySQL Databases.
+AzureSecuritySuite is a comprehensive tool designed to enhance the security posture of your Azure environment. This suite provides automated scanning capabilities across various Azure resources, including Virtual Machines, Storage Accounts, App Services, Network Security Groups, SQL Databases, Key Vaults, PostgreSQL Databases, MySQL Databases, and Cosmos DB.
 
 ## Features
 
-- Scans various Azure resources including Virtual Machines, Storage Accounts, App Services, Network Security Groups, SQL Databases, Key Vaults, PostgreSQL Databases, and MySQL Databases.
-- Provides a comprehensive scan option to run all available scans.
-- Generates detailed reports in CSV format.
-- Includes a user-friendly command-line interface with color-coded output.
-- Logs all actions and results for traceability.
+- **Resource Scanning**: Scans a wide range of Azure resources including:
+  - Virtual Machines
+  - Storage Accounts
+  - App Services
+  - Network Security Groups
+  - SQL Databases
+  - Key Vaults
+  - PostgreSQL Databases
+  - MySQL Databases
+  - Cosmos DB
+- **Comprehensive Scan**: Offers a comprehensive scan option to run all available scans across all supported resources.
+- **Detailed Reporting**: Generates detailed reports in CSV format for easy analysis and record-keeping.
+- **User-Friendly Interface**: Includes a command-line interface with color-coded output for enhanced readability.
+- **Logging**: Logs all actions and results for traceability and troubleshooting.
 
 ## Prerequisites
 
@@ -38,17 +47,15 @@ AzureSecuritySuite is a comprehensive tool designed to enhance the security post
 
    Follow the official installation instructions for [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) and [Steampipe](https://steampipe.io/downloads).
 
-
-
 ## Usage
 
 1. **Run the Script:**
 
    ```bash
-   python Azure.py
+   python AzureSecuritySuite.py
    ```
 
-   - Loging using the menu as well as selecting the correct subscriptions for review. 
+   - Log in using the menu and select the correct subscriptions for review.
 
 2. **Navigate the Menu:**
 
@@ -76,4 +83,4 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 ## Contact
 
-For questions or support, please contact me via Linkedin.
+For questions or support, please contact me via LinkedIn.
