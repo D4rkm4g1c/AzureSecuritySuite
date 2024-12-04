@@ -19,7 +19,7 @@ init(autoreset=True)
 log_dir = 'azuresecuritysuitelogs'
 os.makedirs(log_dir, exist_ok=True)
 
-__version__ = "0.0.1"
+__version__ = "1.0.0"
 
 def get_unique_log_filename(subscription_name):
     """Generate a unique log filename, adding a counter if necessary."""
