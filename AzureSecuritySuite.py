@@ -92,9 +92,13 @@ def display_menu(title, options, prompt="Select an option: ", show_back=False):
         print(f"{Fore.GREEN}{idx}.{Style.RESET_ALL} {option}")
     if show_back:
         print(f"{Fore.RED}0.{Style.RESET_ALL} Back to Previous Menu")
-    choice = input(f"{Fore.YELLOW}{prompt}{Style.RESET_ALL}")
-    logging.info(f"User selected option: {choice}")
-    return choice
+    
+    while True:
+        choice = input(f"{Fore.YELLOW}{prompt}{Style.RESET_ALL}")
+        if choice.isdigit():
+            return int(choice)
+        else:
+            print(f"{Fore.RED}Invalid input. Please enter a number.{Style.RESET_ALL}")
 
 def show_spinner(text):
     """Show a spinner while processing."""
@@ -195,40 +199,34 @@ def create_folder_structure(tenant_name, subscription_name, subscription_id):
     print(f"{Fore.GREEN}Folder structure created successfully.{Style.RESET_ALL}")
     return resource_folders
 
-def scan_menu(resource_folder, scans, title):
-    """Generic function to handle scanning menus."""
-    while True:
-        choice = display_menu(title, [scan[0] for scan in scans] + ["Run All Scans", "Return to Main Menu"], show_back=True)
-        if choice.isdigit():
-            choice = int(choice)
-            if 1 <= choice <= len(scans):
-                query, output_file = scans[choice - 1][1], f"{resource_folder}/{scans[choice - 1][2]}"
-                run_steampipe_query(query, output_file)
-                time.sleep(5)  # Wait for 5 seconds before clearing the screen
-            elif choice == len(scans) + 1:
-                print(f"\n{Fore.CYAN}Running all {title} scans...{Style.RESET_ALL}")
-                for scan in scans:
-                    query, output_file = scan[1], f"{resource_folder}/{scan[2]}"
-                    run_steampipe_query(query, output_file)
-                print(f"{Fore.GREEN}All {title} scans completed.{Style.RESET_ALL}")
-                time.sleep(5)  # Wait for 5 seconds before clearing the screen
-            elif choice == 0:
-                break
-        else:
-            print(f"{Fore.RED}Invalid selection. Please try again.{Style.RESET_ALL}")
+def run_scans(resource_folder, scans, scan_type):
+    """Execute all scans for a given resource type."""
+    print(f"\n{Fore.CYAN}Running {scan_type} scans...{Style.RESET_ALL}")
+    for scan_name, query, output_file in scans:
+        try:
+            print(f"\nExecuting: {scan_name}")
+            run_steampipe_query(query, f"{resource_folder}/{output_file}")
+        except Exception as e:
+            print(f"{Fore.RED}Error in {scan_name}: {str(e)}{Style.RESET_ALL}")
+            logging.error(f"Error in {scan_name}: {str(e)}")
+    print(f"{Fore.GREEN}✓ {scan_type} scans completed{Style.RESET_ALL}")
 
 def scan_storage_accounts(resource_folder):
     """Run Steampipe scans for storage accounts."""
     scans = [
-        ("Scan for Public Blob Access", "SELECT name FROM azure_storage_account WHERE allow_blob_public_access = true", "public_blob_access.csv"),
-        ("Scan for Soft Delete Disabled", "SELECT name FROM azure_storage_account WHERE blob_soft_delete_enabled = false", "soft_delete_disabled.csv"),
-        ("Scan for Network Default Allow", "SELECT name FROM azure_storage_account WHERE network_rule_default_action = 'Allow'", "network_default_allow.csv"),
-        ("Scan for Infrastructure Encryption", "SELECT name FROM azure_storage_account WHERE require_infrastructure_encryption IS NOT TRUE", "infrastructure_encryption.csv"),
-        ("Scan for HTTPS Traffic Only", "SELECT name FROM azure_storage_account WHERE enable_https_traffic_only = 'False'", "https_traffic_only.csv"),
-        ("Scan for TLS Version", "SELECT name FROM azure_storage_account WHERE minimum_tls_version IN ('TLS1_0', 'TLS1_1')", "tls_version.csv"),
-        ("Scan for Blob Versioning", "SELECT name FROM azure_storage_account WHERE blob_versioning_enabled IS NOT TRUE", "blob_versioning.csv")
+        ("Public Blob Access", "SELECT name FROM azure_storage_account WHERE allow_blob_public_access = true", "public_blob_access.csv"),
+        ("Soft Delete Disabled", "SELECT name FROM azure_storage_account WHERE blob_soft_delete_enabled = false", "soft_delete_disabled.csv"),
+        ("Network Default Allow", "SELECT name FROM azure_storage_account WHERE network_rule_default_action = 'Allow'", "network_default_allow.csv"),
+        ("Infrastructure Encryption", "SELECT name FROM azure_storage_account WHERE require_infrastructure_encryption IS NOT TRUE", "infrastructure_encryption.csv"),
+        ("HTTPS Traffic Only", "SELECT name FROM azure_storage_account WHERE enable_https_traffic_only = 'False'", "https_traffic_only.csv"),
+        ("TLS Version", "SELECT name FROM azure_storage_account WHERE minimum_tls_version IN ('TLS1_0', 'TLS1_1')", "tls_version.csv"),
+        ("Blob Versioning", "SELECT name FROM azure_storage_account WHERE blob_versioning_enabled IS NOT TRUE", "blob_versioning.csv")
     ]
-    scan_menu(resource_folder, scans, "Storage Account Scanning Menu")
+    
+    print(f"\n{Fore.CYAN}Running Storage Account scans...{Style.RESET_ALL}")
+    for scan_name, query, output_file in scans:
+        print(f"\nExecuting: {scan_name}")
+        run_steampipe_query(query, f"{resource_folder}/{output_file}")
 
 def scan_virtual_machines(resource_folder):
     """Run Steampipe scans for virtual machines."""
@@ -236,7 +234,7 @@ def scan_virtual_machines(resource_folder):
         ("Scan for Unmanaged Disks", "SELECT vm.name FROM azure_compute_virtual_machine AS vm, azure_subscription AS sub WHERE sub.subscription_id = vm.subscription_id AND managed_disk_id IS NULL", "unmanaged_disks.csv"),
         ("Scan for Unencrypted Disks", "SELECT disk.name FROM azure_compute_disk AS disk, azure_subscription AS sub WHERE disk_state != 'Attached' AND sub.subscription_id = disk.subscription_id AND encryption_type != 'EncryptionAtRestWithCustomerKey'", "unencrypted_disks.csv")
     ]
-    scan_menu(resource_folder, scans, "Virtual Machine Scanning Menu")
+    run_scans(resource_folder, scans, "Virtual Machine")
 
 def scan_key_vaults(resource_folder):
     """Run Steampipe scans for Key Vault misconfigurations."""
@@ -246,7 +244,7 @@ def scan_key_vaults(resource_folder):
         ("Scan Purge Protection Status", "SELECT name FROM azure_key_vault WHERE purge_protection_enabled IS NOT TRUE", "purge_protection_disabled.csv"),
         ("Scan Diagnostic Settings", "SELECT name FROM azure_key_vault WHERE diagnostic_settings IS NULL", "missing_diagnostics.csv"),
     ]
-    scan_menu(resource_folder, scans, "Key Vault Scanning Menu")
+    run_scans(resource_folder, scans, "Key Vault")
 
 def scan_app_services(resource_folder):
     """Run Steampipe scans for App Services."""
@@ -277,7 +275,7 @@ def scan_app_services(resource_folder):
         WHERE b.id IS NOT NULL AND (configuration -> 'properties' ->> 'minTlsVersion') < '1.2'
         """, "api_app_tls_check.csv")
     ]
-    scan_menu(resource_folder, scans, "App Services Scanning Menu")
+    run_scans(resource_folder, scans, "App Services")
 
 def scan_network_security_groups(resource_folder):
     """Run Steampipe scans for Network Security Groups."""
@@ -404,7 +402,7 @@ def scan_network_security_groups(resource_folder):
           sensitive_management_ports
         """, "sensitive_management_ports.csv")
     ]
-    scan_menu(resource_folder, scans, "Network Security Groups Scanning Menu")
+    run_scans(resource_folder, scans, "Network Security Group")
 
 def scan_sql_databases(resource_folder):
     """Run Steampipe scans for SQL Databases."""
@@ -453,7 +451,7 @@ def scan_sql_databases(resource_folder):
         AND encryption ->> 'kind' = 'servicemanaged';
         """, "tde_protector_not_cmk.csv")
     ]
-    scan_menu(resource_folder, scans, "SQL Databases Scanning Menu")
+    run_scans(resource_folder, scans, "SQL Database")
 
 def scan_postgresql_databases(resource_folder):
     """Run Steampipe scans for PostgreSQL Databases."""
@@ -488,7 +486,7 @@ def scan_postgresql_databases(resource_folder):
         AND sub.subscription_id = s.subscription_id;
         """, "logfiles_retention_alarm.csv")
     ]
-    scan_menu(resource_folder, scans, "PostgreSQL Databases Scanning Menu")
+    run_scans(resource_folder, scans, "PostgreSQL Database")
 
 def scan_mysql_databases(resource_folder):
     """Run Steampipe scans for MySQL Databases."""
@@ -524,7 +522,7 @@ def scan_mysql_databases(resource_folder):
         ) AS combined_results;
         """, "tls_noncompliant_servers.csv")
     ]
-    scan_menu(resource_folder, scans, "MySQL Databases Scanning Menu")
+    run_scans(resource_folder, scans, "MySQL Database")
 
 def scan_cosmos_db(resource_folder):
     """Run Steampipe scans for Cosmos DB."""
@@ -539,64 +537,79 @@ def scan_cosmos_db(resource_folder):
         AND sub.subscription_id = a.subscription_id;
         """, "cosmosdb_no_firewall.csv")
     ]
-    scan_menu(resource_folder, scans, "Cosmos DB Scanning Menu")
+    run_scans(resource_folder, scans, "Cosmos DB")
 
 def run_all_scans(resource_folders):
     """Run all Steampipe scans for all resource types automatically."""
-    print(f"\n{Fore.CYAN}Initiating comprehensive scan for all resource types...{Style.RESET_ALL}")
-
-    resource_types = [
-        ("Virtual Machines", scan_virtual_machines, "VirtualMachines"),
-        ("Storage Accounts", scan_storage_accounts, "StorageAccounts"),
-        ("App Services", scan_app_services, "AppServices"),
-        ("Network Security Groups", scan_network_security_groups, "NetworkSecurityGroups"),
-        ("SQL Databases", scan_sql_databases, "SQLDatabases"),
-        ("Key Vaults", scan_key_vaults, "KeyVaults"),
-        ("PostgreSQL Databases", scan_postgresql_databases, "PostgreSQLDatabases"),
-        ("MySQL Databases", scan_mysql_databases, "MySQLDatabases"),
-        ("Cosmos DB", scan_cosmos_db, "CosmosDB")
+    print(f"\n{Fore.CYAN}Starting comprehensive security scan...{Style.RESET_ALL}")
+    
+    scan_functions = [
+        (scan_virtual_machines, "VirtualMachines"),
+        (scan_storage_accounts, "StorageAccounts"),
+        (scan_app_services, "AppServices"),
+        (scan_network_security_groups, "NetworkSecurityGroups"),
+        (scan_sql_databases, "SQLDatabases"),
+        (scan_key_vaults, "KeyVaults"),
+        (scan_postgresql_databases, "PostgreSQLDatabases"),
+        (scan_mysql_databases, "MySQLDatabases"),
+        (scan_cosmos_db, "CosmosDB")
     ]
-
-    for idx, (name, scan_func, folder_key) in enumerate(resource_types, 1):
-        print(f"\n{Fore.CYAN}Scanning {name}...{Style.RESET_ALL}")
-        scan_func(resource_folders[folder_key])
-        print(f"{Fore.GREEN}✓ {name} scan completed.{Style.RESET_ALL}")
-        # Simple progress bar
-        progress = f"[{'#' * idx}{'.' * (len(resource_types) - idx)}] {idx}/{len(resource_types)}"
-        print(f"{Fore.YELLOW}{progress}{Style.RESET_ALL}")
-
+    
+    for scan_func, resource_type in scan_functions:
+        try:
+            print(f"\n{Fore.YELLOW}Running {resource_type} scans...{Style.RESET_ALL}")
+            scan_func(resource_folders[resource_type])
+            print(f"{Fore.GREEN}✓ {resource_type} scans completed{Style.RESET_ALL}")
+        except Exception as e:
+            print(f"{Fore.RED}✗ Error in {resource_type} scan: {str(e)}{Style.RESET_ALL}")
+            logging.error(f"Error in {resource_type} scan: {str(e)}")
+    
     print(f"\n{Fore.GREEN}Comprehensive scan completed.{Style.RESET_ALL}")
-    time.sleep(5)  # Wait for 5 seconds before clearing the screen
 
 def main_menu(resource_folders):
     """Interactive menu for running scans."""
-    options = [
-        ("Scan Virtual Machines", scan_virtual_machines, "VirtualMachines"),
-        ("Scan Storage Accounts", scan_storage_accounts, "StorageAccounts"),
-        ("Scan App Services", scan_app_services, "AppServices"),
-        ("Scan Network Security Groups", scan_network_security_groups, "NetworkSecurityGroups"),
-        ("Scan SQL Databases", scan_sql_databases, "SQLDatabases"),
-        ("Scan Key Vaults", scan_key_vaults, "KeyVaults"),
-        ("Scan PostgreSQL Databases", scan_postgresql_databases, "PostgreSQLDatabases"),
-        ("Scan MySQL Databases", scan_mysql_databases, "MySQLDatabases"),
-        ("Scan Cosmos DB", scan_cosmos_db, "CosmosDB"),
-        ("Run All Scans", run_all_scans, None),
-        ("Exit", None, None)
-    ]
+    scan_functions = {
+        "Run All Scans": (run_all_scans, None),
+        "Virtual Machines": (scan_virtual_machines, "VirtualMachines"),
+        "Storage Accounts": (scan_storage_accounts, "StorageAccounts"),
+        "App Services": (scan_app_services, "AppServices"),
+        "Network Security Groups": (scan_network_security_groups, "NetworkSecurityGroups"),
+        "SQL Databases": (scan_sql_databases, "SQLDatabases"),
+        "Key Vaults": (scan_key_vaults, "KeyVaults"),
+        "PostgreSQL Databases": (scan_postgresql_databases, "PostgreSQLDatabases"),
+        "MySQL Databases": (scan_mysql_databases, "MySQLDatabases"),
+        "Cosmos DB": (scan_cosmos_db, "CosmosDB"),
+        "Exit": (None, None)
+    }
 
     while True:
-        choice = display_menu("Resource Type Scanning Menu", [opt[0] for opt in options])
-        if choice.isdigit():
-            choice = int(choice)
-            if 1 <= choice <= len(options):
-                if options[choice - 1][1]:
-                    if options[choice - 1][2]:
-                        options[choice - 1][1](resource_folders[options[choice - 1][2]])
+        choice = display_menu("Azure Security Scanner", list(scan_functions.keys()))
+        
+        if 1 <= choice <= len(scan_functions):
+            selected_option = list(scan_functions.items())[choice - 1]
+            func, resource_type = selected_option[1]
+            
+            if func:
+                try:
+                    if resource_type:
+                        func(resource_folders[resource_type])
                     else:
-                        options[choice - 1][1](resource_folders)
-                else:
-                    print(f"{Fore.CYAN}Exiting the script. Thank you for using our service.{Style.RESET_ALL}")
-                    break
+                        # This is for "Run All Scans" option
+                        print(f"\n{Fore.CYAN}Starting comprehensive security scan...{Style.RESET_ALL}")
+                        for scan_name, (scan_func, res_type) in scan_functions.items():
+                            if scan_func and res_type:  # Skip "Run All Scans" and "Exit" options
+                                try:
+                                    scan_func(resource_folders[res_type])
+                                except Exception as e:
+                                    print(f"{Fore.RED}Error in {scan_name}: {str(e)}{Style.RESET_ALL}")
+                                    logging.error(f"Error in {scan_name}: {str(e)}")
+                        print(f"\n{Fore.GREEN}Comprehensive scan completed.{Style.RESET_ALL}")
+                except Exception as e:
+                    print(f"{Fore.RED}Error executing scan: {str(e)}{Style.RESET_ALL}")
+                    logging.error(f"Error executing scan: {str(e)}")
+            else:
+                print(f"{Fore.CYAN}Exiting the script. Thank you for using our service.{Style.RESET_ALL}")
+                break
         else:
             print(f"{Fore.RED}Invalid selection. Please try again.{Style.RESET_ALL}")
 
@@ -631,26 +644,25 @@ def initial_menu():
             "Exit"
         ])
 
-        if choice == "1":
+        if choice == 1:
             logging.info("Clearing Azure cached credentials.")
             os.system("az account clear")
             print(f"{Fore.GREEN}Credentials cleared.{Style.RESET_ALL}")
-        elif choice == "2":
+        elif choice == 2:
             logging.info("Logging into Azure.")
             subprocess.run(["az", "login", "--output", "none"], check=True)
             print(f"{Fore.GREEN}Login completed.{Style.RESET_ALL}")
-        elif choice == "3":
+        elif choice == 3:
             logging.info("Listing Azure subscriptions.")
             subscriptions = json.loads(subprocess.run(["az", "account", "list", "--query", "[].{id:id, name:name}", "-o", "json"], capture_output=True, text=True, check=True).stdout)
             print(f"\n{Fore.CYAN}Available subscriptions:{Style.RESET_ALL}")
             for idx, sub in enumerate(subscriptions):
                 print(f"{Fore.GREEN}{idx + 1}.{Style.RESET_ALL} {sub['name']} ({sub['id']})")
 
-            sub_choice = int(input(f"{Fore.YELLOW}Select a subscription by number: {Style.RESET_ALL}")) - 1
-            logging.info(f"User selected subscription: {sub_choice}")
-            if 0 <= sub_choice < len(subscriptions):
-                subscription_id = subscriptions[sub_choice]["id"]
-                subscription_name = subscriptions[sub_choice]["name"]
+            sub_choice = display_menu("Select a subscription by number", [f"{sub['name']} ({sub['id']})" for sub in subscriptions])
+            if 1 <= sub_choice <= len(subscriptions):
+                subscription_id = subscriptions[sub_choice - 1]["id"]
+                subscription_name = subscriptions[sub_choice - 1]["name"]
                 subprocess.run(["az", "account", "set", "--subscription", subscription_id], check=True)
                 print(f"{Fore.GREEN}Subscription set to: {subscription_name} ({subscription_id}){Style.RESET_ALL}")
                 
@@ -659,7 +671,7 @@ def initial_menu():
                 resource_folders = create_folder_structure(tenant_name, subscription_name, subscription_id)
             else:
                 print(f"{Fore.RED}Invalid selection.{Style.RESET_ALL}")
-        elif choice == "4":
+        elif choice == 4:
             if not check_azure_login():
                 print(f"{Fore.RED}Please login first (Option 2){Style.RESET_ALL}")
                 continue
@@ -667,7 +679,7 @@ def initial_menu():
                 print(f"{Fore.RED}Please select a subscription first (Option 3){Style.RESET_ALL}")
                 continue
             main_menu(resource_folders)
-        elif choice == "5":
+        elif choice == 5:
             logging.info("Exiting script.")
             print(f"{Fore.CYAN}Exiting script. Thank you for using our service.{Style.RESET_ALL}")
             sys.exit(0)
