@@ -13,13 +13,13 @@ from datetime import datetime
 import requests
 
 # Initialize colorama for cross-platform color support
-init(autoreset=True)
+init(autoreset=True) 
 
 # Create logs directory if it doesn't exist
 log_dir = 'azuresecuritysuitelogs'
 os.makedirs(log_dir, exist_ok=True)
 
-__version__ = "1.0.0"
+__version__ = "0.0.1"
 
 def get_unique_log_filename(subscription_name):
     """Generate a unique log filename, adding a counter if necessary."""
@@ -605,35 +605,48 @@ def update_script():
         # URL to the raw script file on GitHub
         script_url = "https://raw.githubusercontent.com/D4rkm4g1c/AzureSecuritySuite/refs/heads/main/AzureSecuritySuite.py"
         
-        # Fetch the latest script from GitHub
-        response = requests.get(script_url, stream=True)
+        # Get the directory of the current script
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        script_name = os.path.basename(__file__)
+        
+        # Create paths for temporary and backup files
+        temp_file = os.path.join(script_dir, f"{script_name}.tmp")
+        backup_file = os.path.join(script_dir, f"{script_name}.backup")
+        
+        print(f"{Fore.CYAN}Downloading latest version...{Style.RESET_ALL}")
+        
+        # Fetch the latest script from GitHub with proper encoding
+        response = requests.get(script_url)
         response.raise_for_status()
+        content = response.content.decode('utf-8')
         
-        # Create a temporary file for the new version
-        temp_file = __file__ + '.new'
-        backup_file = __file__ + '.backup'
-        
-        # Download to temporary file
-        with open(temp_file, 'wb') as f:
-            shutil.copyfileobj(response.raw, f)
-            
-        # Create backup of current version
+        # Backup existing file first
+        print(f"{Fore.CYAN}Creating backup...{Style.RESET_ALL}")
         shutil.copy2(__file__, backup_file)
         
+        # Write new content to temporary file
+        print(f"{Fore.CYAN}Writing new version...{Style.RESET_ALL}")
+        with open(temp_file, 'w', encoding='utf-8') as f:
+            f.write(content)
+            
         # Replace the old file with the new version
-        shutil.move(temp_file, __file__)
+        print(f"{Fore.CYAN}Installing update...{Style.RESET_ALL}")
+        os.replace(temp_file, __file__)
         
-        print(f"{Fore.GREEN}Script updated successfully to the latest version. Backup created at {backup_file}{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}✓ Script updated successfully!{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}✓ Backup created at: {backup_file}{Style.RESET_ALL}")
         print(f"{Fore.YELLOW}Please restart the script to use the new version.{Style.RESET_ALL}")
+        sys.exit(0)
         
     except requests.RequestException as e:
-        print(f"{Fore.RED}Failed to update the script: {str(e)}{Style.RESET_ALL}")
+        print(f"{Fore.RED}Failed to download update: {str(e)}{Style.RESET_ALL}")
         if os.path.exists(temp_file):
             os.remove(temp_file)
     except Exception as e:
-        print(f"{Fore.RED}An error occurred during update: {str(e)}{Style.RESET_ALL}")
+        print(f"{Fore.RED}Error during update: {str(e)}{Style.RESET_ALL}")
         if os.path.exists(temp_file):
             os.remove(temp_file)
+        print(f"{Fore.YELLOW}Your backup file is available at: {backup_file}{Style.RESET_ALL}")
 
 def main():
     """Main function to start the script."""
