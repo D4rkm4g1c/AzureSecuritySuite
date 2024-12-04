@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import os
 import platform
 import shutil
@@ -17,6 +18,8 @@ init(autoreset=True)
 # Create logs directory if it doesn't exist
 log_dir = 'azuresecuritysuitelogs'
 os.makedirs(log_dir, exist_ok=True)
+
+__version__ = "0.0.1"
 
 def get_unique_log_filename(subscription_name):
     """Generate a unique log filename, adding a counter if necessary."""
