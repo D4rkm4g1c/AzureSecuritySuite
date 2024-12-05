@@ -19,7 +19,7 @@ init(autoreset=True)
 log_dir = 'azuresecuritysuitelogs'
 os.makedirs(log_dir, exist_ok=True)
 
-__version__ = "1.0.0"
+__version__ = "0.0.1"
 
 def get_unique_log_filename(subscription_name):
     """Generate a unique log filename, adding a counter if necessary."""
@@ -70,7 +70,7 @@ def clear_screen():
     """Clear the terminal screen based on OS."""
     os.system('cls' if platform.system() == 'Windows' else 'clear') 
 
-def print_banner():
+def print_banner(update_available=False, latest_version=None):
     """Display a professional and colorful banner with ASCII art."""
     clear_screen()
     terminal_width = shutil.get_terminal_size().columns
@@ -88,8 +88,6 @@ def print_banner():
  `.__,'        (___)  (___)       (___ ) (___) (___)(___)(___)     (___)   `.__. |  (___)  `.__,'   
                                                                            ( `-' ;                  
                                                                             `.__.                   
-    
-
     """.strip().splitlines()
 
     # Calculate the width of the ASCII art
@@ -115,7 +113,16 @@ def print_banner():
 ║{' ' * (terminal_width-2)}║
 ║{Style.BRIGHT + Fore.GREEN + 'Created by D4rkm4g1c (Consultant)'.center(terminal_width-2)}║
 ║{' ' * (terminal_width-2)}║
-║{Style.BRIGHT + Fore.GREEN + f' Version 1.0 - 2024-12-03'.center(terminal_width-2)}║
+║{Style.BRIGHT + Fore.GREEN + f' Version {__version__} - 2024-12-03'.center(terminal_width-2)}║"""
+
+    # Add update notification if available
+    if update_available and latest_version:
+        banner += f"""
+║{' ' * (terminal_width-2)}║
+║{Style.BRIGHT + Fore.YELLOW + f' Update Available! Version {latest_version} '.center(terminal_width-2)}║
+║{Style.BRIGHT + Fore.YELLOW + ' Run with --update to upgrade '.center(terminal_width-2)}║"""
+
+    banner += f"""
 ║{' ' * (terminal_width-2)}║
 ╚{'═' * (terminal_width-2)}╝{Style.RESET_ALL}
 """
@@ -123,8 +130,6 @@ def print_banner():
 
 def display_menu(title, options, prompt="Select an option: ", show_back=False):
     """Display a menu with a title and options."""
-    clear_screen()
-    print_banner()
     logging.info(f"Displaying menu: {title}")
     print(f"\n{Fore.CYAN}{Style.BRIGHT}{title}:{Style.RESET_ALL}")
     for idx, option in enumerate(options, 1):
@@ -488,14 +493,16 @@ def clear_account_credentials():
     print(f"{Fore.CYAN}Clearing Azure cached credentials...{Style.RESET_ALL}")
     os.system("az account clear")
 
-def initial_menu():
+def initial_menu(update_needed=False, latest_version=None):
     """Initial setup menu for Azure operations."""
     resource_folders = None
     logging_configured = False
     
+    # Clear screen and print banner only once at the start
+    clear_screen()
+    print_banner(update_needed, latest_version)
+    
     while True:
-        clear_screen()
-        print_banner()
         watermark = f"{Fore.LIGHTBLACK_EX}Azure Security Scanner - Confidential{Style.RESET_ALL}"
         print(f"{watermark.center(shutil.get_terminal_size().columns)}\n")
 
@@ -582,28 +589,50 @@ def check_for_updates():
     """Check if there is a newer version of the script available on GitHub."""
     try:
         # URL to the raw version file on GitHub
-        version_url = "https://raw.githubusercontent.com/D4rkm4g1c/AzureSecuritySuite/refs/heads/main/version.txt"
+        version_url = "https://raw.githubusercontent.com/D4rkm4g1c/AzureSecuritySuite/main/version.txt"
         
         # Fetch the latest version from GitHub
         response = requests.get(version_url)
         response.raise_for_status()
         
-        latest_version = response.text.strip()
+        # Extract version number from response
+        latest_version_line = response.text.strip()
+        if latest_version_line.startswith('__version__'):
+            # Extract the version number from the line
+            latest_version = latest_version_line.split('=')[1].strip().strip('"\'')
+        else:
+            raise ValueError("Unexpected version format in version.txt")
         
-        if latest_version > __version__:
+        # Convert versions to tuples for proper comparison
+        current_ver = tuple(map(int, __version__.split('.')))
+        latest_ver = tuple(map(int, latest_version.split('.')))
+        
+        if latest_ver > current_ver:
             print(f"{Fore.YELLOW}A new version ({latest_version}) is available!{Style.RESET_ALL}")
             print(f"Run the script with --update to download the latest version.")
+            return (True, latest_version)
         else:
             print(f"{Fore.GREEN}You are using the latest version ({__version__}).{Style.RESET_ALL}")
+            return (False, latest_version)
             
     except requests.RequestException as e:
         print(f"{Fore.RED}Failed to check for updates: {str(e)}{Style.RESET_ALL}")
+        return (False, None)
+    except ValueError as e:
+        print(f"{Fore.RED}Error parsing version: {str(e)}{Style.RESET_ALL}")
+        return (False, None)
 
 def update_script():
     """Download the latest version of the script from GitHub."""
     try:
+        # First get the latest version number
+        version_url = "https://raw.githubusercontent.com/D4rkm4g1c/AzureSecuritySuite/main/version.txt"
+        version_response = requests.get(version_url)
+        version_response.raise_for_status()
+        latest_version = version_response.text.strip().split('=')[1].strip().strip('"\'')
+        
         # URL to the raw script file on GitHub
-        script_url = "https://raw.githubusercontent.com/D4rkm4g1c/AzureSecuritySuite/refs/heads/main/AzureSecuritySuite.py"
+        script_url = "https://raw.githubusercontent.com/D4rkm4g1c/AzureSecuritySuite/main/AzureSecuritySuite.py"
         
         # Get the directory of the current script
         script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -620,6 +649,9 @@ def update_script():
         response.raise_for_status()
         content = response.content.decode('utf-8')
         
+        # Update the version number in the content
+        content = content.replace('__version__ = "0.0.1"', f'__version__ = "{latest_version}"')
+        
         # Backup existing file first
         print(f"{Fore.CYAN}Creating backup...{Style.RESET_ALL}")
         shutil.copy2(__file__, backup_file)
@@ -633,7 +665,7 @@ def update_script():
         print(f"{Fore.CYAN}Installing update...{Style.RESET_ALL}")
         os.replace(temp_file, __file__)
         
-        print(f"{Fore.GREEN}✓ Script updated successfully!{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}✓ Script updated successfully to version {latest_version}!{Style.RESET_ALL}")
         print(f"{Fore.GREEN}✓ Backup created at: {backup_file}{Style.RESET_ALL}")
         print(f"{Fore.YELLOW}Please restart the script to use the new version.{Style.RESET_ALL}")
         sys.exit(0)
@@ -650,8 +682,22 @@ def update_script():
 
 def main():
     """Main function to start the script."""
-    logging.info("Starting Azure Security Scanner.")
-    initial_menu()
+    try:
+        update_needed, latest_version = check_for_updates()
+        
+        # Even if an update is available, we should still allow the script to run
+        if update_needed:
+            print(f"{Fore.YELLOW}Note: A new version ({latest_version}) is available. You can update using --update flag.{Style.RESET_ALL}")
+        else:
+            print(f"{Fore.GREEN}You are running the latest version ({__version__}).{Style.RESET_ALL}")
+        
+        # Continue with script execution regardless of update status
+        logging.info("Starting Azure Security Scanner.")
+        initial_menu(update_needed, latest_version)
+        
+    except Exception as e:
+        print(f"{Fore.RED}Error starting the script: {str(e)}{Style.RESET_ALL}")
+        logging.error(f"Error starting the script: {str(e)}")
 
 if __name__ == "__main__":
     # Argument parsing
@@ -662,5 +708,4 @@ if __name__ == "__main__":
     if args.update:
         update_script()
     else:
-        check_for_updates()
-        # Continue with the rest of your script
+        main()  # Call the main function to start the script
