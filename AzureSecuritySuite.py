@@ -19,7 +19,7 @@ init(autoreset=True)
 log_dir = 'azuresecuritysuitelogs'
 os.makedirs(log_dir, exist_ok=True)
 
-__version__ = "0.0.1"
+__version__ = "1.0.0"
 
 def get_unique_log_filename(subscription_name):
     """Generate a unique log filename, adding a counter if necessary."""
@@ -47,8 +47,14 @@ def configure_logging(subscription_name):
             logging.root.removeHandler(handler)
             
         log_filepath = get_unique_log_filename(subscription_name)
+        if not log_filepath:
+            raise ValueError("Failed to generate log filepath")
+            
         print(f"\n{Fore.CYAN}Setting up logging...{Style.RESET_ALL}")
         print(f"Log file will be created at: {log_filepath}")
+        
+        # Create logs directory if it doesn't exist
+        os.makedirs(os.path.dirname(log_filepath), exist_ok=True)
         
         logging.basicConfig(
             filename=log_filepath,
@@ -128,21 +134,153 @@ def print_banner(update_available=False, latest_version=None):
 """
     print(banner)
 
+def sanitize_input(user_input, input_type="numeric", allowed_range=None):
+    """
+    Sanitize user input based on expected type and range.
+    
+    Args:
+        user_input (str): The raw input from user
+        input_type (str): Expected type ("numeric", "text", "choice")
+        allowed_range (tuple): Optional tuple of (min, max) for numeric inputs
+    
+    Returns:
+        tuple: (is_valid, sanitized_value, error_message)
+    """
+    try:
+        if not user_input.strip():
+            return False, None, "Input cannot be empty"
+
+        if input_type == "numeric":
+            # Remove any whitespace and check if it's a number
+            cleaned_input = user_input.strip()
+            if not cleaned_input.isdigit():
+                return False, None, "Please enter a valid number"
+            
+            value = int(cleaned_input)
+            if allowed_range:
+                min_val, max_val = allowed_range
+                if not (min_val <= value <= max_val):
+                    return False, None, f"Please enter a number between {min_val} and {max_val}"
+            return True, value, None
+
+        elif input_type == "text":
+            # Remove dangerous characters and excessive whitespace
+            cleaned_input = " ".join(user_input.strip().split())
+            if not cleaned_input:
+                return False, None, "Input cannot be empty"
+            return True, cleaned_input, None
+
+        elif input_type == "choice":
+            cleaned_input = user_input.strip().lower()
+            if cleaned_input not in ['y', 'n', 'yes', 'no']:
+                return False, None, "Please enter 'y' or 'n'"
+            return True, cleaned_input in ['y', 'yes'], None
+
+    except Exception as e:
+        logging.error(f"Input sanitization error: {str(e)}")
+        return False, None, "Invalid input format"
+
+def handle_error(error, context=None):
+    """
+    Handle errors and provide user-friendly messages and suggestions.
+    
+    Args:
+        error (Exception): The caught exception
+        context (str): Additional context about where the error occurred
+    """
+    error_type = type(error).__name__
+    error_msg = str(error)
+    
+    # Common error messages and suggestions
+    error_suggestions = {
+        "ConnectionError": (
+            "Network connection error",
+            ["Check your internet connection", 
+             "Verify Azure CLI is properly configured",
+             "Check if Azure services are available"]
+        ),
+        "AuthenticationError": (
+            "Authentication failed",
+            ["Try clearing your cached credentials (Option 1)",
+             "Log in again using 'az login' (Option 2)",
+             "Verify your Azure account has necessary permissions"]
+        ),
+        "PermissionError": (
+            "Permission denied",
+            ["Verify you have necessary Azure role assignments",
+             "Check if your account has MFA requirements",
+             "Try logging in again with elevated permissions"]
+        ),
+        "ValueError": (
+            "Invalid value provided",
+            ["Check if the input matches the expected format",
+             "Verify all required parameters are provided",
+             "Ensure the values are within acceptable ranges"]
+        ),
+        "FileNotFoundError": (
+            "Required file not found",
+            ["Verify the file path is correct",
+             "Check if the file exists in the expected location",
+             "Ensure you have read permissions for the file"]
+        )
+    }
+
+    # Get error details
+    error_details = error_suggestions.get(error_type, 
+        ("An unexpected error occurred", 
+         ["Try restarting the script",
+          "Check the logs for more details",
+          "Contact support if the issue persists"])
+    )
+
+    # Log the error
+    logging.error(f"Error in {context}: {error_type} - {error_msg}")
+
+    # Display user-friendly error message
+    print(f"\n{Fore.RED}Error: {error_details[0]}{Style.RESET_ALL}")
+    print(f"{Fore.RED}Details: {error_msg}{Style.RESET_ALL}")
+    
+    # Display suggestions
+    print(f"\n{Fore.YELLOW}Suggestions to resolve:{Style.RESET_ALL}")
+    for suggestion in error_details[1]:
+        print(f"{Fore.YELLOW}• {suggestion}{Style.RESET_ALL}")
+
 def display_menu(title, options, prompt="Select an option: ", show_back=False):
     """Display a menu with a title and options."""
     logging.info(f"Displaying menu: {title}")
     print(f"\n{Fore.CYAN}{Style.BRIGHT}{title}:{Style.RESET_ALL}")
+    
+    # Calculate the valid range for menu options
+    min_value = 0 if show_back else 1
+    max_value = len(options)
+    
     for idx, option in enumerate(options, 1):
         print(f"{Fore.GREEN}{idx}.{Style.RESET_ALL} {option}")
     if show_back:
         print(f"{Fore.RED}0.{Style.RESET_ALL} Back to Previous Menu")
     
     while True:
-        choice = input(f"{Fore.YELLOW}{prompt}{Style.RESET_ALL}")
-        if choice.isdigit():
-            return int(choice)
-        else:
-            print(f"{Fore.RED}Invalid input. Please enter a number.{Style.RESET_ALL}")
+        try:
+            # Get user input and sanitize it
+            choice = input(f"{Fore.YELLOW}{prompt}{Style.RESET_ALL}")
+            is_valid, value, error_message = sanitize_input(
+                choice, 
+                input_type="numeric", 
+                allowed_range=(min_value, max_value)
+            )
+            
+            if is_valid:
+                return value
+            else:
+                print(f"{Fore.RED}{error_message}{Style.RESET_ALL}")
+                print(f"{Fore.YELLOW}Please enter a number between {min_value} and {max_value}{Style.RESET_ALL}")
+                
+        except KeyboardInterrupt:
+            print(f"\n{Fore.YELLOW}Operation cancelled by user{Style.RESET_ALL}")
+            return None
+        except Exception as e:
+            handle_error(e, "menu selection")
+            continue
 
 def show_spinner(text):
     """Show a spinner while processing."""
@@ -174,39 +312,63 @@ def run_steampipe_query(query, output_file):
         ]
         logging.info(f"Executing Steampipe command: {' '.join(steampipe_cmd)}")
         print(f"\n{Fore.CYAN}Executing query...{Style.RESET_ALL}")
-        spinner = show_spinner("Processing query")
         
-        # Show spinner while query is running
-        process = subprocess.Popen(steampipe_cmd, 
-                                   stdout=subprocess.PIPE, 
-                                   stderr=subprocess.PIPE, 
-                                   text=True)
-        
+        # Check if steampipe is installed
         try:
-            while process.poll() is None:
-                next(spinner)
-                time.sleep(0.1)
-        except KeyboardInterrupt:
-            process.terminate()
-            raise
+            subprocess.run(["steampipe", "--version"], check=True, capture_output=True)
+        except subprocess.CalledProcessError:
+            raise RuntimeError("Steampipe is not installed or not in PATH")
         
-        stdout, stderr = process.communicate()
+        # Use asyncio for non-blocking IO
+        process = subprocess.Popen(steampipe_cmd, 
+                               stdout=subprocess.PIPE, 
+                               stderr=subprocess.PIPE, 
+                               text=True,
+                               bufsize=1)  # Line buffered
+        
+        spinner = show_spinner("Processing query")
+        stdout_data = []
+        stderr_data = []
+        
+        # Process output in chunks
+        while True:
+            next(spinner)
+            
+            # Read output without blocking
+            output = process.stdout.readline()
+            error = process.stderr.readline()
+            
+            if output:
+                stdout_data.append(output.strip())
+            if error:
+                stderr_data.append(error.strip())
+                
+            # Check if process has finished
+            if process.poll() is not None:
+                break
+                
+            time.sleep(0.1)
+        
         print('\r', end='')  # Clear spinner line
         
         if process.returncode == 0:
-            resources = [r.strip().rstrip('%') for r in stdout.splitlines() if r.strip()]
-            formatted_output = ", ".join(resources)
+            # Process CSV output efficiently
+            results = [line for line in stdout_data if line.strip()]
             
-            with open(output_file, 'w') as f:
-                f.write(formatted_output)
+            # Create directory if it doesn't exist
+            os.makedirs(os.path.dirname(output_file), exist_ok=True)
+            
+            # Write results efficiently
+            with open(output_file, 'w', newline='') as f:
+                f.write('\n'.join(results))
             
             print(f"{Fore.GREEN}✓ Results saved to: {output_file}{Style.RESET_ALL}")
-            logging.info(f"Query executed successfully. Found {len(resources)} resources.")
-            logging.info(f"Results saved to: {output_file}")
+            logging.info(f"Query executed successfully. Found {len(results)} resources.")
             return True
         else:
-            print(f"{Fore.RED}✗ Query execution failed: {stderr}{Style.RESET_ALL}")
-            logging.error(f"Query execution failed with error: {stderr}")
+            error_msg = '\n'.join(stderr_data)
+            print(f"{Fore.RED}✗ Query execution failed: {error_msg}{Style.RESET_ALL}")
+            logging.error(f"Query execution failed with error: {error_msg}")
             return False
             
     except Exception as e:
@@ -216,11 +378,13 @@ def run_steampipe_query(query, output_file):
 
 def create_folder_structure(tenant_name, subscription_name, subscription_id):
     """Create the folder structure for the tenant and subscription."""
-    tenant_folder = os.path.join(".", tenant_name)
-    os.makedirs(tenant_folder, exist_ok=True)
+    # Use tenant name as the base directory
+    base_dir = tenant_name
+    os.makedirs(base_dir, exist_ok=True)
 
+    # Create subscription folder
     subscription_folder_name = f"{subscription_name} ({subscription_id})"
-    subscription_folder = os.path.join(tenant_folder, subscription_folder_name)
+    subscription_folder = os.path.join(base_dir, subscription_folder_name)
     os.makedirs(subscription_folder, exist_ok=True)
 
     resource_types = [
@@ -241,7 +405,7 @@ def create_folder_structure(tenant_name, subscription_name, subscription_id):
         os.makedirs(resource_folder, exist_ok=True)
         resource_folders[resource_type] = resource_folder
 
-    print(f"{Fore.GREEN}Folder structure created successfully.{Style.RESET_ALL}")
+    print(f"{Fore.GREEN}✓ Folder structure created in {base_dir}{Style.RESET_ALL}")
     return resource_folders
 
 def write_vuln_overview(vuln_overview, resource_folder, resource_type):
@@ -254,65 +418,46 @@ def write_vuln_overview(vuln_overview, resource_folder, resource_type):
     print(f"{Fore.GREEN}✓ Vulnerability overview for {resource_type} saved to: {output_file}{Style.RESET_ALL}")
 
 def run_scans(resource_folder, scans, scan_type):
-    """Execute all scans for a given resource type."""
+    """Execute all scans for a given resource type with improved efficiency."""
     print(f"\n{Fore.CYAN}Running {scan_type} scans...{Style.RESET_ALL}")
     logging.info(f"Starting scans for {scan_type}")
-    logging.info("=" * 50)  # Add visual separator in logs
-    vuln_overview = {}  # Dictionary to store vulnerabilities for this resource type
+    
+    # Pre-allocate dictionary for results
+    vuln_overview = {}
+    total_scans = len(scans)
+    completed_scans = 0
     
     for scan_name, query, output_file in scans:
         try:
-            print(f"\nExecuting: {scan_name}")
-            logging.info(f"\nExecuting Scan: {scan_name}")
-            logging.info(f"SQL Query: {query}")
+            completed_scans += 1
+            print(f"\nExecuting: {scan_name} ({completed_scans}/{total_scans})")
+            logging.info(f"Executing Scan: {scan_name}")
+            
             full_output_path = os.path.join(resource_folder, output_file)
             
-            # Run the query and get results
-            process = subprocess.Popen(
-                ["steampipe", "query", query, "--output", "csv", "--header=false"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True
-            )
-            stdout, stderr = process.communicate()
-            
-            if process.returncode == 0:
-                # Process the results
-                resources = [r.strip() for r in stdout.splitlines() if r.strip()]
-                
-                # Write to individual scan file
-                with open(full_output_path, 'w') as f:
-                    f.write(", ".join(resources))
-                
-                # Update vulnerability overview
+            # Run query with improved efficiency
+            if run_steampipe_query(query, full_output_path):
+                # Read results and update vulnerability overview
+                with open(full_output_path, 'r') as f:
+                    resources = [r.strip() for r in f.readlines() if r.strip()]
+                    
+                # Batch process results
                 for resource in resources:
                     if resource not in vuln_overview:
                         vuln_overview[resource] = []
                     vuln_overview[resource].append(scan_name)
-                
-                print(f"{Fore.GREEN}✓ Results saved to: {output_file}{Style.RESET_ALL}")
-                logging.info(f"Scan completed successfully")
-                logging.info(f"Found {len(resources)} vulnerable resources")
-                logging.info(f"Results saved to: {full_output_path}")
-            else:
-                print(f"{Fore.RED}✗ Query execution failed: {stderr}{Style.RESET_ALL}")
-                logging.error(f"Query execution failed: {stderr}")
-                
+                    
         except Exception as e:
             print(f"{Fore.RED}Error in {scan_name}: {str(e)}{Style.RESET_ALL}")
             logging.error(f"Error in {scan_name}: {str(e)}")
-        
-        logging.info("-" * 30)  # Add separator between scans
     
-    # Write vulnerability overview for this resource type
+    # Write vulnerability overview in one operation
     if vuln_overview:
         write_vuln_overview(vuln_overview, resource_folder, scan_type)
         logging.info(f"Vulnerability overview written for {scan_type}")
         logging.info(f"Total resources with vulnerabilities: {len(vuln_overview)}")
     
-    print(f"{Fore.GREEN}✓ {scan_type} scans completed{Style.RESET_ALL}")
-    logging.info(f"All {scan_type} scans completed")
-    logging.info("=" * 50)  # Add visual separator in logs
+    print(f"{Fore.GREEN}✓ {scan_type} scans completed ({completed_scans}/{total_scans}){Style.RESET_ALL}")
 
 def scan_virtual_machines(resource_folder):
     """Run Steampipe scans for virtual machines."""
@@ -446,39 +591,46 @@ def main_menu(resource_folders):
         "PostgreSQL Databases": (scan_postgresql_databases, "PostgreSQLDatabases"),
         "MySQL Databases": (scan_mysql_databases, "MySQLDatabases"),
         "Cosmos DB": (scan_cosmos_db, "CosmosDB"),
+        "Help": (display_help, None),
         "Exit": (None, None)
     }
 
     while True:
-        choice = display_menu("Azure Security Scanner", list(scan_functions.keys()))
-        
-        if 1 <= choice <= len(scan_functions):
-            selected_option = list(scan_functions.items())[choice - 1]
-            func, resource_type = selected_option[1]
+        try:
+            clear_screen()
+            print_banner()
+            choice = display_menu("Azure Security Scanner", list(scan_functions.keys()))
             
-            if func:
-                try:
-                    if resource_type:
-                        func(resource_folders[resource_type])
-                    else:
-                        # This is for "Run All Scans" option
-                        print(f"\n{Fore.CYAN}Starting comprehensive security scan...{Style.RESET_ALL}")
-                        for scan_name, (scan_func, res_type) in scan_functions.items():
-                            if scan_func and res_type:  # Skip "Run All Scans" and "Exit" options
-                                try:
-                                    scan_func(resource_folders[res_type])
-                                except Exception as e:
-                                    print(f"{Fore.RED}Error in {scan_name}: {str(e)}{Style.RESET_ALL}")
-                                    logging.error(f"Error in {scan_name}: {str(e)}")
-                        print(f"\n{Fore.GREEN}Comprehensive scan completed.{Style.RESET_ALL}")
-                except Exception as e:
-                    print(f"{Fore.RED}Error executing scan: {str(e)}{Style.RESET_ALL}")
-                    logging.error(f"Error executing scan: {str(e)}")
+            if choice is None:  # User cancelled
+                continue
+                
+            if 1 <= choice <= len(scan_functions):
+                selected_option = list(scan_functions.items())[choice - 1]
+                func, resource_type = selected_option[1]
+                
+                if func:
+                    try:
+                        if resource_type:
+                            func(resource_folders[resource_type])
+                        else:
+                            func()
+                        input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+                    except Exception as e:
+                        handle_error(e, f"executing {selected_option[0]}")
+                        input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+                else:
+                    print(f"{Fore.CYAN}Exiting the script. Thank you for using our service.{Style.RESET_ALL}")
+                    break
             else:
-                print(f"{Fore.CYAN}Exiting the script. Thank you for using our service.{Style.RESET_ALL}")
-                break
-        else:
-            print(f"{Fore.RED}Invalid selection. Please try again.{Style.RESET_ALL}")
+                print(f"{Fore.RED}Invalid selection. Please try again.{Style.RESET_ALL}")
+                input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+                
+        except KeyboardInterrupt:
+            print(f"\n{Fore.YELLOW}Operation cancelled by user. Returning to main menu...{Style.RESET_ALL}")
+            continue
+        except Exception as e:
+            handle_error(e, "main menu")
+            input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
 
 def check_azure_login():
     """Check if already logged into Azure."""
@@ -487,103 +639,180 @@ def check_azure_login():
         return True
     except subprocess.CalledProcessError:
         return False
+    except Exception as e:
+        logging.error(f"Error checking Azure login: {str(e)}")
+        return False
 
 def clear_account_credentials():
     """Clear Azure cached account credentials."""
     print(f"{Fore.CYAN}Clearing Azure cached credentials...{Style.RESET_ALL}")
     os.system("az account clear")
 
+def get_tenant_name():
+    """Retrieve the tenant name using Azure CLI."""
+    try:
+        # Get the current account details to find the tenant ID
+        account_details = json.loads(subprocess.run(
+            ["az", "account", "show", "--query", "{tenantId:tenantId}"], 
+            capture_output=True, text=True, check=True
+        ).stdout)
+        tenant_id = account_details['tenantId']
+
+        # Use the tenant ID to get the tenant's display name
+        tenant_info = json.loads(subprocess.run(
+            ["az", "ad", "tenant", "show", "--id", tenant_id, "--query", "{displayName:displayName}"],
+            capture_output=True, text=True, check=True
+        ).stdout)
+        tenant_name = tenant_info['displayName']
+        
+        if not tenant_name:
+            raise ValueError("Tenant name is empty")
+            
+        return tenant_name
+
+    except subprocess.CalledProcessError as e:
+        print(f"{Fore.RED}Failed to retrieve tenant name: {str(e)}{Style.RESET_ALL}")
+        logging.error(f"Failed to retrieve tenant name: {str(e)}")
+        return None
+    except json.JSONDecodeError as e:
+        print(f"{Fore.RED}Failed to parse Azure CLI output: {str(e)}{Style.RESET_ALL}")
+        logging.error(f"Failed to parse Azure CLI output: {str(e)}")
+        return None
+    except Exception as e:
+        print(f"{Fore.RED}Unexpected error retrieving tenant name: {str(e)}{Style.RESET_ALL}")
+        logging.error(f"Unexpected error retrieving tenant name: {str(e)}")
+        return None
+
 def initial_menu(update_needed=False, latest_version=None):
     """Initial setup menu for Azure operations."""
     resource_folders = None
     logging_configured = False
     
-    # Clear screen and print banner only once at the start
-    clear_screen()
-    print_banner(update_needed, latest_version)
-    
     while True:
-        watermark = f"{Fore.LIGHTBLACK_EX}Azure Security Scanner - Confidential{Style.RESET_ALL}"
-        print(f"{watermark.center(shutil.get_terminal_size().columns)}\n")
-
-        # Show logging status
-        if logging_configured:
-            print(f"{Fore.GREEN}✓ Logging is configured{Style.RESET_ALL}")
-        else:
-            print(f"{Fore.YELLOW}! Logging not yet configured{Style.RESET_ALL}")
-
-        choice = display_menu("Azure Setup Menu", [
-            "Clear Cached Credentials",
-            "Login to Azure",
-            "Choose Subscription",
-            "Start Testing",
-            "Exit"
-        ])
-
-        if choice == 1:
-            print(f"{Fore.CYAN}Clearing Azure cached credentials...{Style.RESET_ALL}")
-            os.system("az account clear")
-            print(f"{Fore.GREEN}Credentials cleared.{Style.RESET_ALL}")
-            if logging_configured:
-                logging.info("Azure credentials cleared")
-                
-        elif choice == 2:
-            print(f"{Fore.CYAN}Logging into Azure...{Style.RESET_ALL}")
-            subprocess.run(["az", "login", "--output", "none"], check=True)
-            print(f"{Fore.GREEN}Login completed.{Style.RESET_ALL}")
-            if logging_configured:
-                logging.info("Azure login completed")
-                
-        elif choice == 3:
-            print(f"{Fore.CYAN}Listing Azure subscriptions...{Style.RESET_ALL}")
-            subscriptions = json.loads(subprocess.run(["az", "account", "list", "--query", "[].{id:id, name:name}", "-o", "json"], capture_output=True, text=True, check=True).stdout)
+        try:
+            # Clear screen and print banner only once per loop
+            clear_screen()
+            print_banner(update_needed, latest_version)
             
-            print(f"\n{Fore.CYAN}Available subscriptions:{Style.RESET_ALL}")
-            for idx, sub in enumerate(subscriptions):
-                print(f"{Fore.GREEN}{idx + 1}.{Style.RESET_ALL} {sub['name']} ({sub['id']})")
+            watermark = f"{Fore.LIGHTBLACK_EX}Azure Security Scanner - Confidential{Style.RESET_ALL}"
+            print(f"{watermark.center(shutil.get_terminal_size().columns)}\n")
 
-            sub_choice = display_menu("Select a subscription by number", [f"{sub['name']} ({sub['id']})" for sub in subscriptions])
-            if 1 <= sub_choice <= len(subscriptions):
-                subscription_id = subscriptions[sub_choice - 1]["id"]
-                subscription_name = subscriptions[sub_choice - 1]["name"]
-                
-                # Set subscription
-                subprocess.run(["az", "account", "set", "--subscription", subscription_id], check=True)
-                print(f"{Fore.GREEN}Subscription set to: {subscription_name} ({subscription_id}){Style.RESET_ALL}")
-                
-                # Configure logging
-                logging_configured = configure_logging(subscription_name)
-                if logging_configured:
-                    logging.info(f"Selected subscription: {subscription_name} ({subscription_id})")
-                
-                # Get tenant details and create folder structure
-                tenant_details = json.loads(subprocess.run(["az", "account", "show"], capture_output=True, text=True, check=True).stdout)
-                tenant_name = tenant_details['tenantId']
-                resource_folders = create_folder_structure(tenant_name, subscription_name, subscription_id)
-                
+            # Show logging status
+            if logging_configured:
+                print(f"{Fore.GREEN}✓ Logging is configured{Style.RESET_ALL}")
             else:
-                print(f"{Fore.RED}Invalid selection.{Style.RESET_ALL}")
+                print(f"{Fore.YELLOW}! Logging not yet configured{Style.RESET_ALL}")
+
+            choice = display_menu("Azure Setup Menu", [
+                "Clear Cached Credentials",
+                "Login to Azure",
+                "Choose Subscription",
+                "Start Testing",
+                "Exit"
+            ])
+
+            if choice == 1:  # Clear Cached Credentials
+                clear_screen()
+                print_banner(update_needed, latest_version)
+                print(f"{Fore.CYAN}Clearing Azure cached credentials...{Style.RESET_ALL}")
+                os.system("az account clear")
+                print(f"{Fore.GREEN}Credentials cleared.{Style.RESET_ALL}")
+                if logging_configured:
+                    logging.info("Azure credentials cleared")
+                input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+
+            elif choice == 2:  # Login to Azure
+                clear_screen()
+                print_banner(update_needed, latest_version)
+                print(f"{Fore.CYAN}Logging into Azure...{Style.RESET_ALL}")
+                subprocess.run(["az", "login", "--output", "none"], check=True)
+                print(f"{Fore.GREEN}Login completed.{Style.RESET_ALL}")
+                if logging_configured:
+                    logging.info("Azure login completed")
+                input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+
+            elif choice == 3:  # Choose Subscription
+                clear_screen()
+                print_banner(update_needed, latest_version)
+                print(f"{Fore.CYAN}Listing Azure subscriptions...{Style.RESET_ALL}")
                 
-        elif choice == 4:
-            if not check_azure_login():
-                print(f"{Fore.RED}Please login first (Option 2){Style.RESET_ALL}")
-                continue
-            if resource_folders is None:
-                print(f"{Fore.RED}Please select a subscription first (Option 3){Style.RESET_ALL}")
-                continue
-            if not logging_configured:
-                print(f"{Fore.RED}Logging not configured. Please select a subscription first.{Style.RESET_ALL}")
-                continue
-            main_menu(resource_folders)
-            
-        elif choice == 5:
-            if logging_configured:
-                logging.info("Exiting script")
-            print(f"{Fore.CYAN}Exiting script. Thank you for using our service.{Style.RESET_ALL}")
-            sys.exit(0)
-            
-        else:
-            print(f"{Fore.RED}Invalid selection. Please try again.{Style.RESET_ALL}")
+                try:
+                    # Get the tenant name
+                    tenant_name = get_tenant_name()
+                    if not tenant_name:
+                        print(f"{Fore.RED}Unable to retrieve tenant name. Please check your Azure CLI configuration.{Style.RESET_ALL}")
+                        input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+                        continue
+
+                    # Get subscriptions
+                    subscriptions = json.loads(subprocess.run(
+                        ["az", "account", "list", "--query", "[].{id:id, name:name}", "-o", "json"], 
+                        capture_output=True, text=True, check=True
+                    ).stdout)
+                    
+                    if not subscriptions:
+                        print(f"{Fore.RED}No subscriptions found. Please login first.{Style.RESET_ALL}")
+                        input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+                        continue
+                    
+                    print(f"\n{Fore.CYAN}Available subscriptions:{Style.RESET_ALL}")
+                    sub_options = [f"{sub['name']} ({sub['id']})" for sub in subscriptions]
+                    sub_choice = display_menu("Select a subscription", sub_options, show_back=True)
+                    
+                    if sub_choice == 0:  # Back option
+                        continue
+                        
+                    if 1 <= sub_choice <= len(subscriptions):
+                        subscription = subscriptions[sub_choice - 1]
+                        subscription_id = subscription["id"]
+                        subscription_name = subscription["name"]
+                        
+                        # Set subscription
+                        subprocess.run(["az", "account", "set", "--subscription", subscription_id], check=True)
+                        print(f"{Fore.GREEN}Subscription set to: {subscription_name} ({subscription_id}){Style.RESET_ALL}")
+                        
+                        # Configure logging
+                        logging_configured = configure_logging(subscription_name)
+                        if logging_configured:
+                            logging.info(f"Selected subscription: {subscription_name} ({subscription_id})")
+                            logging.info(f"Tenant name: {tenant_name}")
+                        
+                        # Create folder structure using tenant name
+                        resource_folders = create_folder_structure(tenant_name, subscription_name, subscription_id)
+                        
+                        input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+                
+                except Exception as e:
+                    handle_error(e, "choosing subscription")
+                    input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+
+            elif choice == 4:  # Start Testing
+                if not check_azure_login():
+                    print(f"{Fore.RED}Please login first (Option 2){Style.RESET_ALL}")
+                    input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+                    continue
+                if resource_folders is None:
+                    print(f"{Fore.RED}Please select a subscription first (Option 3){Style.RESET_ALL}")
+                    input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+                    continue
+                if not logging_configured:
+                    print(f"{Fore.RED}Logging not configured. Please select a subscription first.{Style.RESET_ALL}")
+                    input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+                    continue
+                main_menu(resource_folders)
+                
+            elif choice == 5:  # Exit
+                if logging_configured:
+                    logging.info("Exiting script")
+                print(f"{Fore.CYAN}Exiting script. Thank you for using our service.{Style.RESET_ALL}")
+                sys.exit(0)
+                
+        except KeyboardInterrupt:
+            print(f"\n{Fore.YELLOW}Operation cancelled by user. Returning to main menu...{Style.RESET_ALL}")
+            continue
+        except Exception as e:
+            handle_error(e, "initial menu")
+            input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
 
 def check_for_updates():
     """Check if there is a newer version of the script available on GitHub."""
@@ -679,6 +908,42 @@ def update_script():
         if os.path.exists(temp_file):
             os.remove(temp_file)
         print(f"{Fore.YELLOW}Your backup file is available at: {backup_file}{Style.RESET_ALL}")
+
+def display_help():
+    """Display help information for menu options."""
+    help_info = f"""
+{Fore.CYAN}Azure Security Scanner Help{Style.RESET_ALL}
+
+{Fore.GREEN}Available Scan Options:{Style.RESET_ALL}
+• Run All Scans - Execute all security scans in sequence
+• Virtual Machines - Check VM security configurations and vulnerabilities
+• Storage Accounts - Analyze storage account security settings
+• App Services - Review web and function app security settings
+• Network Security Groups - Examine NSG rules and configurations
+• SQL Databases - Check SQL database security settings
+• Key Vaults - Analyze Key Vault access and security configurations
+• PostgreSQL Databases - Review PostgreSQL security settings
+• MySQL Databases - Check MySQL database security configurations
+• Cosmos DB - Examine Cosmos DB security settings
+
+{Fore.GREEN}Setup Options:{Style.RESET_ALL}
+• Clear Cached Credentials - Remove stored Azure credentials
+• Login to Azure - Authenticate with Azure CLI
+• Choose Subscription - Select an Azure subscription to scan
+
+{Fore.GREEN}Navigation:{Style.RESET_ALL}
+• Use numbers to select menu options
+• Press Ctrl+C to cancel operations
+• Select 'Exit' to quit the program
+
+{Fore.GREEN}For more information:{Style.RESET_ALL}
+• Check the logs in the 'azuresecuritysuitelogs' directory
+• Visit the GitHub repository for updates and documentation
+• Report issues on the GitHub issue tracker
+"""
+    print(help_info)
+    logging.info("Help information displayed")
+    input(f"\n{Fore.CYAN}Press Enter to return to the menu...{Style.RESET_ALL}")
 
 def main():
     """Main function to start the script."""
