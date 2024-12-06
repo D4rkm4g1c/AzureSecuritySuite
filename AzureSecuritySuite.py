@@ -11,6 +11,11 @@ from colorama import init, Fore, Style
 import logging
 from datetime import datetime
 import requests
+from pathlib import Path
+import csv
+from html import escape
+from typing import Dict, List
+from report_generator import generate_html_report
 
 # Initialize colorama for cross-platform color support
 init(autoreset=True) 
@@ -85,11 +90,11 @@ def print_banner(update_available=False, latest_version=None):
     (   )                         (   )                                                             
   .-.| |       ,--.    ___ .-.     | |   ___    ___ .-. .-.        ,--.     .--.    .--.    .--.    
  /   \ |      /   |   (   )   \    | |  (   )  (   )   '   \      /   |    /    \  (_  |   /    \   
-|  .-. |     / .' |    | ' .-. ;   | |  ' /     |  .-.  .-. ;    / .' |   ;  ,-. '   | |  |  .-. ;  
+|  .-. |     / .' |    | ' .-. ;   | |  ' /     |  .-.  .-. ;    / /| |   ;  ,-. '   | |  |  .-. ;  
 | |  | |    / / | |    |  / (___)  | |,' /      | |  | |  | |   / / | |   | |  | |   | |  |  |(___) 
 | |  | |   / /  | |    | |         | .  '.      | |  | |  | |  / /  | |   | |  | |   | |  |  |      
 | |  | |  /  `--' |-.  | |         | | `. \     | |  | |  | | /  `--' |-. | |  | |   | |  |  | ___  
-| '  | |  `-----| |-'  | |         | |   \ \    | |  | |  | | `-----| |-' | '  | |   | |  |  '(   ) 
+| '  | |  `-----| |-'  | |         | |   \ .    | |  | |  | | `-----| |-' | '  | |   | |  |  '(   ) 
 ' `-'  /        | |    | |         | |    \ .   | |  | |  | |       | |   '  `-' |   | |  '  `-' |  
  `.__,'        (___)  (___)       (___ ) (___) (___)(___)(___)     (___)   `.__. |  (___)  `.__,'   
                                                                            ( `-' ;                  
@@ -284,7 +289,7 @@ def display_menu(title, options, prompt="Select an option: ", show_back=False):
 
 def show_spinner(text):
     """Show a spinner while processing."""
-    spinner = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+    spinner = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '', '⠏']
     i = 0
     while True:
         print(f"\r{Fore.CYAN}{spinner[i]} {text}{Style.RESET_ALL}", end='', flush=True)
@@ -635,8 +640,47 @@ scan_cosmos_db.scans = [
     ("No Firewall", "SELECT name FROM azure_cosmosdb_account WHERE is_virtual_network_filter_enabled = false", "cosmosdb_no_firewall.csv")
 ]
 
+def get_finding_details(finding_type: str) -> Dict:
+    """Get details for a specific finding type from configuration."""
+    try:
+        # First check for a local finding_details.json
+        config_path = Path(__file__).parent / 'finding_details.json'
+        if config_path.exists():
+            with open(config_path, 'r') as f:
+                all_findings = json.load(f)
+                return all_findings.get(finding_type, {
+                    'description': f'Security finding related to {finding_type}',
+                    'impact': 'This finding may impact the security of your Azure resources',
+                    'recommendation': 'Review the affected resources and implement security best practices',
+                    'references': [
+                        {'text': 'Azure Security Best Practices', 'url': 'https://docs.microsoft.com/azure/security/fundamentals/best-practices-concepts'},
+                        {'text': 'Azure Security Documentation', 'url': 'https://docs.microsoft.com/azure/security/'}
+                    ]
+                })
+    except Exception as e:
+        logging.warning(f"Could not load finding details: {e}")
+    
+    # Return default details if file doesn't exist or has an error
+    return {
+        'description': f'Security finding related to {finding_type}',
+        'impact': 'This finding may impact the security of your Azure resources',
+        'recommendation': 'Review the affected resources and implement security best practices',
+        'references': [
+            {'text': 'Azure Security Best Practices', 'url': 'https://docs.microsoft.com/azure/security/fundamentals/best-practices-concepts'},
+            {'text': 'Azure Security Documentation', 'url': 'https://docs.microsoft.com/azure/security/'}
+        ]
+    }
+
 def main_menu(resource_folders):
     """Interactive menu for running scans."""
+    # Get tenant name directly from the first resource folder path
+    first_folder = next(iter(resource_folders.values()))
+    # Convert string path to Path object if it's a string
+    if isinstance(first_folder, str):
+        tenant_name = Path(first_folder).parts[0]  # Get the first part of the path
+    else:
+        tenant_name = first_folder.parent.parent.name
+    
     scan_functions = {
         "Run All Scans": (run_all_scans, "All"),
         "Virtual Machines": (scan_virtual_machines, "VirtualMachines"),
@@ -648,10 +692,11 @@ def main_menu(resource_folders):
         "PostgreSQL Databases": (scan_postgresql_databases, "PostgreSQLDatabases"),
         "MySQL Databases": (scan_mysql_databases, "MySQLDatabases"),
         "Cosmos DB": (scan_cosmos_db, "CosmosDB"),
+        "Generate HTML Report": (lambda: generate_html_report(tenant_name), None),
         "Help": (display_help, None),
         "Exit": (None, None)
     }
-
+    
     while True:
         try:
             clear_screen()
