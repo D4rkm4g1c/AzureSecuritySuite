@@ -581,7 +581,7 @@ def run_all_scans(resource_folders):
 def main_menu(resource_folders):
     """Interactive menu for running scans."""
     scan_functions = {
-        "Run All Scans": (run_all_scans, None),
+        "Run All Scans": (run_all_scans, "All"),
         "Virtual Machines": (scan_virtual_machines, "VirtualMachines"),
         "Storage Accounts": (scan_storage_accounts, "StorageAccounts"),
         "App Services": (scan_app_services, "AppServices"),
@@ -610,7 +610,9 @@ def main_menu(resource_folders):
                 
                 if func:
                     try:
-                        if resource_type:
+                        if resource_type == "All":
+                            func(resource_folders)
+                        elif resource_type:
                             func(resource_folders[resource_type])
                         else:
                             func()
@@ -649,38 +651,30 @@ def clear_account_credentials():
     os.system("az account clear")
 
 def get_tenant_name():
-    """Retrieve the tenant name using Azure CLI."""
+    """Retrieve the tenant ID using Azure CLI."""
     try:
-        # Get the current account details to find the tenant ID
-        account_details = json.loads(subprocess.run(
-            ["az", "account", "show", "--query", "{tenantId:tenantId}"], 
-            capture_output=True, text=True, check=True
-        ).stdout)
-        tenant_id = account_details['tenantId']
-
-        # Use the tenant ID to get the tenant's display name
-        tenant_info = json.loads(subprocess.run(
-            ["az", "ad", "tenant", "show", "--id", tenant_id, "--query", "{displayName:displayName}"],
-            capture_output=True, text=True, check=True
-        ).stdout)
-        tenant_name = tenant_info['displayName']
+        # Get just the tenant ID directly
+        result = subprocess.run(
+            ["az", "account", "show", "--query", "tenantId", "-o", "tsv"], 
+            capture_output=True, 
+            text=True, 
+            check=True
+        )
         
-        if not tenant_name:
-            raise ValueError("Tenant name is empty")
+        tenant_id = result.stdout.strip()
+        if tenant_id:
+            logging.info(f"Successfully retrieved tenant ID: {tenant_id}")
+            return tenant_id
             
-        return tenant_name
+        raise ValueError("Empty tenant ID returned")
 
     except subprocess.CalledProcessError as e:
-        print(f"{Fore.RED}Failed to retrieve tenant name: {str(e)}{Style.RESET_ALL}")
-        logging.error(f"Failed to retrieve tenant name: {str(e)}")
-        return None
-    except json.JSONDecodeError as e:
-        print(f"{Fore.RED}Failed to parse Azure CLI output: {str(e)}{Style.RESET_ALL}")
-        logging.error(f"Failed to parse Azure CLI output: {str(e)}")
+        print(f"{Fore.RED}Failed to retrieve tenant ID: {str(e)}{Style.RESET_ALL}")
+        logging.error(f"Failed to retrieve tenant ID: {str(e)}")
         return None
     except Exception as e:
-        print(f"{Fore.RED}Unexpected error retrieving tenant name: {str(e)}{Style.RESET_ALL}")
-        logging.error(f"Unexpected error retrieving tenant name: {str(e)}")
+        print(f"{Fore.RED}Unexpected error retrieving tenant ID: {str(e)}{Style.RESET_ALL}")
+        logging.error(f"Unexpected error retrieving tenant ID: {str(e)}")
         return None
 
 def initial_menu(update_needed=False, latest_version=None):
@@ -934,7 +928,7 @@ def display_help():
 {Fore.GREEN}Navigation:{Style.RESET_ALL}
 • Use numbers to select menu options
 • Press Ctrl+C to cancel operations
-• Select 'Exit' to quit the program
+ Select 'Exit' to quit the program
 
 {Fore.GREEN}For more information:{Style.RESET_ALL}
 • Check the logs in the 'azuresecuritysuitelogs' directory
