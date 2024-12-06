@@ -2,24 +2,88 @@
 
 ## Overview
 
-AzureSecuritySuite is a comprehensive tool designed to enhance the security posture of your Azure environment. This suite provides automated scanning capabilities across various Azure resources, including Virtual Machines, Storage Accounts, App Services, Network Security Groups, SQL Databases, Key Vaults, PostgreSQL Databases, MySQL Databases, and Cosmos DB.
+AzureSecuritySuite is a comprehensive security assessment tool designed to identify potential security misconfigurations and vulnerabilities in your Azure environment. The tool automates the process of checking for common security issues such as unencrypted disks, public access settings, weak TLS configurations, and more across your Azure resources.
 
-## Features
+## What Does It Check?
 
-- **Resource Scanning**: Scans a wide range of Azure resources including:
-  - Virtual Machines
-  - Storage Accounts
-  - App Services
-  - Network Security Groups
-  - SQL Databases
-  - Key Vaults
-  - PostgreSQL Databases
-  - MySQL Databases
-  - Cosmos DB
-- **Comprehensive Scan**: Offers a comprehensive scan option to run all available scans across all supported resources.
-- **Detailed Reporting**: Generates detailed reports in CSV format for easy analysis and record-keeping.
-- **User-Friendly Interface**: Includes a command-line interface with color-coded output for enhanced readability.
-- **Logging**: Logs all actions and results for traceability and troubleshooting.
+The tool performs various security checks across different Azure resources:
+
+### Virtual Machines
+- Unmanaged disks detection
+- Unencrypted disk identification
+- Network security configuration review
+
+### Storage Accounts
+- Public blob access settings
+- Soft delete configuration
+- Network access rules
+- Infrastructure encryption status
+- HTTPS traffic settings
+- TLS version verification
+- Blob versioning status
+
+### App Services
+- Authentication settings review
+- HTTPS-only status
+- Client certificate requirements
+- Managed identity configuration
+- HTTP/2 protocol status
+- FTPS state verification
+- TLS version compliance
+
+### Network Security Groups
+- Unrestricted inbound/outbound rules
+- Clear text protocols allowed
+- Sensitive port exposure
+
+### SQL Databases
+- Server audit policy status
+- Audit retention periods
+- Firewall rules configuration
+- Public network access settings
+- Azure AD authentication status
+- TDE protector configuration
+
+### Key Vaults
+- Network ACLs configuration
+- Soft delete status
+- Purge protection settings
+- Diagnostic settings verification
+
+### PostgreSQL/MySQL Databases
+- Security configuration checks
+- Log retention settings
+- TLS compliance verification
+
+### Cosmos DB
+- Firewall configuration review
+
+## Quick Demo
+
+Here's how to use the tool:
+
+1. **Initial Setup**:
+   ```bash
+   python AzureSecuritySuite.py
+   ```
+
+2. **Login Process**:
+   - Select "Login to Azure"
+   - Authenticate via browser prompt
+   - Choose your subscription
+
+3. **Running Scans**:
+   - Option 1: Select "Run All Scans" for a comprehensive assessment
+   - Option 2: Choose specific resource types (e.g., "Virtual Machines")
+     - Select individual checks or "Run All" for that resource
+     - Review results
+     - Run additional checks as needed
+
+4. **Viewing Results**:
+   - Results are saved in CSV format
+   - Files are organized by tenant and subscription
+   - Each resource type has its own folder
+   - Each check produces a separate CSV file
 
 ## Prerequisites
 
@@ -31,47 +95,25 @@ AzureSecuritySuite is a comprehensive tool designed to enhance the security post
 ## Installation
 
 1. **Clone the Repository:**
-
    ```bash
    git clone https://github.com/D4rkm4g1c/AzureSecuritySuite.git
    cd azure-security-scanner
    ```
 
 2. **Install Required Packages:**
-
    ```bash
    pip install -r requirements.txt
    ```
 
 3. **Install Azure CLI and Steampipe:**
-
    Follow the official installation instructions for [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) and [Steampipe](https://steampipe.io/downloads).
-
-## Usage
-
-1. **Run the Script:**
-
-   ```bash
-   python AzureSecuritySuite.py
-   ```
-
-   - Log in using the menu and select the correct subscriptions for review.
-
-2. **Navigate the Menu:**
-
-   - Use the menu to select the type of scan you want to perform.
-   - Follow the prompts to execute scans and view results.
-
-3. **View Reports:**
-
-   - Reports are saved in CSV format in the specified output directory.
-   - Review the logs in `azure_scanner.log` for detailed execution information.
 
 ## Troubleshooting
 
-- Ensure you are logged into Azure CLI before running the script.
-- Verify that Steampipe is installed and configured correctly.
-- Check the `azure_scanner.log` file for error messages and troubleshooting information.
+- Ensure Azure CLI is logged in (`az login`)
+- Verify Steampipe installation (`steampipe --version`)
+- Check `azure_scanner.log` for detailed error messages
+- Ensure you have appropriate permissions in your Azure subscription
 
 ## Contributing
 
