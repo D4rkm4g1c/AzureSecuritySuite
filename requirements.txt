@@ -1,0 +1,6 @@
+colorama==0.4.6
+requests==2.31.0
+pathlib==1.0.1
+python-dateutil==2.8.2
+logging==0.5.1.2
+html==3.0.0 

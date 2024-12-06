@@ -4,7 +4,25 @@
 
 AzureSecuritySuite is a comprehensive security assessment tool designed to identify potential security misconfigurations and vulnerabilities in your Azure environment. The tool automates the process of checking for common security issues such as unencrypted disks, public access settings, weak TLS configurations, and more across your Azure resources.
 
-## What Does It Check?
+## Features
+
+### Automated Security Scanning
+- Comprehensive security checks across multiple Azure services
+- Parallel processing for improved performance
+- Real-time progress tracking
+- Detailed logging system
+
+### Interactive HTML Reports
+- Clean, modern interface
+- Dark/Light mode toggle
+- Interactive filtering and search capabilities
+- Two viewing modes:
+  - View by Vulnerability
+  - View by Resource
+- Executive summary with key metrics
+- Responsive design for all devices
+
+## Security Checks
 
 The tool performs various security checks across different Azure resources:
 
@@ -58,39 +76,41 @@ The tool performs various security checks across different Azure resources:
 ### Cosmos DB
 - Firewall configuration review
 
-## Quick Demo
-
-Here's how to use the tool:
+## Quick Start Guide
 
 1. **Initial Setup**:
    ```bash
    python AzureSecuritySuite.py
    ```
 
-2. **Login Process**:
+2. **Authentication**:
    - Select "Login to Azure"
    - Authenticate via browser prompt
    - Choose your subscription
 
 3. **Running Scans**:
-   - Option 1: Select "Run All Scans" for a comprehensive assessment
-   - Option 2: Choose specific resource types (e.g., "Virtual Machines")
-     - Select individual checks or "Run All" for that resource
-     - Review results
-     - Run additional checks as needed
+   - Option 1: "Run All Scans" for comprehensive assessment
+   - Option 2: Choose specific resource types
+   - Review real-time progress
+   - Generate HTML report when complete
 
-4. **Viewing Results**:
-   - Results are saved in CSV format
-   - Files are organized by tenant and subscription
-   - Each resource type has its own folder
-   - Each check produces a separate CSV file
+4. **Viewing Reports**:
+   - Open generated HTML report
+   - Use search functionality to find specific issues
+   - Toggle between vulnerability and resource views
+   - Switch between light/dark modes for comfortable viewing
+   - Review executive summary for quick insights
 
 ## Prerequisites
 
 - Python 3.6 or higher
 - Azure CLI
 - Steampipe
-- Colorama Python package
+- Required Python packages:
+  - colorama
+  - pathlib
+  - datetime
+  - logging
 
 ## Installation
 
@@ -114,6 +134,7 @@ Here's how to use the tool:
 - Verify Steampipe installation (`steampipe --version`)
 - Check `azure_scanner.log` for detailed error messages
 - Ensure you have appropriate permissions in your Azure subscription
+- For report issues, check browser console for any JavaScript errors
 
 ## Contributing
 

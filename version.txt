@@ -1,1 +1,11 @@
-__version__ = "1.0.0"
+__version__ = "1.0.1"
+
+# Changelog
+# ---------
+# v1.0.1 (06-12-2024)
+# - Added dark mode toggle with color scheme (#444444, #bcd03e, #ffffff)
+# - Removed severity indicators (pending implementation)
+# - Enhanced report styling with new green theme (#b0d351)
+# - Simplified header design
+# - Improved executive summary layout
+# - Added consistent styling across all report sections
