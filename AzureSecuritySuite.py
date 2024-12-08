@@ -416,10 +416,33 @@ def create_folder_structure(tenant_name, subscription_name, subscription_id):
 def write_vuln_overview(vuln_overview, resource_folder, resource_type):
     """Write the vulnerability overview to a CSV file in the resource folder."""
     output_file = os.path.join(resource_folder, f"{resource_type}_vulnerability_overview.csv")
-    with open(output_file, 'w') as f:
-        f.write("Resource Name,Vulnerabilities Found\n")
+    
+    # Special handling for NSGs to combine findings for the same NSG
+    if resource_type == "NetworkSecurityGroups":
+        consolidated_overview = {}
         for resource, vulns in vuln_overview.items():
-            f.write(f"{resource},{', '.join(vulns)}\n")
+            # Extract base NSG name (remove port info if present)
+            base_name = resource.split(' (')[0]
+            
+            if base_name not in consolidated_overview:
+                consolidated_overview[base_name] = set()
+            
+            # Add all vulnerabilities for this NSG
+            consolidated_overview[base_name].update(vulns)
+        
+        # Write consolidated overview
+        with open(output_file, 'w') as f:
+            f.write("Resource Name,Vulnerabilities Found\n")
+            for resource, vulns in consolidated_overview.items():
+                # Join vulnerabilities with semicolon for better separation
+                f.write(f"{resource},{'; '.join(vulns)}\n")
+    else:
+        # Original handling for other resource types
+        with open(output_file, 'w') as f:
+            f.write("Resource Name,Vulnerabilities Found\n")
+            for resource, vulns in vuln_overview.items():
+                f.write(f"{resource},{'; '.join(vulns)}\n")
+                
     print(f"{Fore.GREEN}✓ Vulnerability overview for {resource_type} saved to: {output_file}{Style.RESET_ALL}")
 
 def run_scans(resource_folder, scans, scan_type):
@@ -581,8 +604,95 @@ def scan_network_security_groups(resource_folder):
 
 scan_network_security_groups.scans = [
     ("Unrestricted Inbound/Outbound Rules", "WITH unrestricted_inbound AS (SELECT DISTINCT name AS sg_name FROM azure_network_security_group nsg, jsonb_array_elements(security_rules || default_security_rules) sg, jsonb_array_elements_text(CASE WHEN jsonb_array_length(sg -> 'properties' -> 'destinationPortRanges') > 0 THEN (sg -> 'properties' -> 'destinationPortRanges') ELSE jsonb_build_array(sg -> 'properties' -> 'destinationPortRange') END) AS dport, jsonb_array_elements_text(CASE WHEN jsonb_array_length(sg -> 'properties' -> 'sourceAddressPrefixes') > 0 THEN (sg -> 'properties' -> 'sourceAddressPrefixes') ELSE jsonb_build_array(sg -> 'properties' -> 'sourceAddressPrefix') END) AS sip WHERE sg -> 'properties' ->> 'access' = 'Allow' AND sg -> 'properties' ->> 'direction' = 'Inbound' AND sip IN ('*', '0.0.0.0', '0.0.0.0/0', 'Internet', 'any', '<nw>/0', '/0') AND dport = '*'), unrestricted_outbound AS (SELECT DISTINCT name AS sg_name FROM azure_network_security_group nsg, jsonb_array_elements(security_rules || default_security_rules) sg, jsonb_array_elements_text(CASE WHEN jsonb_array_length(sg -> 'properties' -> 'destinationPortRanges') > 0 THEN (sg -> 'properties' -> 'destinationPortRanges') ELSE jsonb_build_array(sg -> 'properties' -> 'destinationPortRange') END) AS dport, jsonb_array_elements_text(CASE WHEN jsonb_array_length(sg -> 'properties' -> 'sourceAddressPrefixes') > 0 THEN (sg -> 'properties' -> 'sourceAddressPrefixes') ELSE jsonb_build_array(sg -> 'properties' -> 'sourceAddressPrefix') END) AS sip WHERE sg -> 'properties' ->> 'access' = 'Allow' AND sg -> 'properties' ->> 'direction' = 'Outbound' AND sip IN ('*', '0.0.0.0', '0.0.0.0/0', 'Internet', 'any', '<nw>/0', '/0') AND dport = '*') SELECT sg_name FROM unrestricted_inbound UNION SELECT sg_name FROM unrestricted_outbound", "unrestricted_rules.csv"),
-    ("Clear Text Protocols", "WITH clear_text_protocols AS (SELECT DISTINCT name AS sg_name, dport FROM azure_network_security_group nsg, jsonb_array_elements(security_rules || default_security_rules) sg, jsonb_array_elements_text(CASE WHEN jsonb_array_length(sg -> 'properties' -> 'destinationPortRanges') > 0 THEN (sg -> 'properties' -> 'destinationPortRanges') ELSE jsonb_build_array(sg -> 'properties' -> 'destinationPortRange') END) AS dport WHERE sg -> 'properties' ->> 'access' = 'Allow' AND dport IN ('20', '21', '23', '25', '69', '80', '110', '119', '143', '161', '162', '389', '513', '514')) SELECT sg_name || ' (' || dport || ')' as nsg_port FROM clear_text_protocols", "clear_text_protocols.csv"),
-    ("Sensitive Management Ports", "WITH sensitive_management_ports AS (SELECT DISTINCT name AS sg_name, dport FROM azure_network_security_group nsg, jsonb_array_elements(security_rules || default_security_rules) sg, jsonb_array_elements_text(CASE WHEN jsonb_array_length(sg -> 'properties' -> 'destinationPortRanges') > 0 THEN (sg -> 'properties' -> 'destinationPortRanges') ELSE jsonb_build_array(sg -> 'properties' -> 'destinationPortRange') END) AS dport, jsonb_array_elements_text(CASE WHEN jsonb_array_length(sg -> 'properties' -> 'sourceAddressPrefixes') > 0 THEN (sg -> 'properties' -> 'sourceAddressPrefixes') ELSE jsonb_build_array(sg -> 'properties' -> 'sourceAddressPrefix') END) AS sip WHERE sg -> 'properties' ->> 'access' = 'Allow' AND sip IN ('*', '0.0.0.0', '0.0.0.0/0', 'Internet', 'any', '<nw>/0', '/0') AND dport IN ('22', '23', '80', '443', '3389', '5900', '21', '69', '389', '514', '137', '138', '139', '445', '88', '3306', '1433', '5432', '1521', '6379', '25', '465', '110')) SELECT sg_name || ' (' || dport || ')' as nsg_port FROM sensitive_management_ports", "sensitive_management_ports.csv")
+    ("Clear Text Protocols", """
+        WITH clear_text_protocols AS (
+            SELECT DISTINCT 
+                name AS sg_name,
+                dport,
+                CASE dport
+                    WHEN '20' THEN 'FTP-Data'
+                    WHEN '21' THEN 'FTP'
+                    WHEN '23' THEN 'Telnet'
+                    WHEN '25' THEN 'SMTP'
+                    WHEN '69' THEN 'TFTP'
+                    WHEN '80' THEN 'HTTP'
+                    WHEN '110' THEN 'POP3'
+                    WHEN '119' THEN 'NNTP'
+                    WHEN '143' THEN 'IMAP'
+                    WHEN '161' THEN 'SNMP'
+                    WHEN '162' THEN 'SNMP-Trap'
+                    WHEN '389' THEN 'LDAP'
+                    WHEN '513' THEN 'rlogin'
+                    WHEN '514' THEN 'syslog'
+                END AS service_name
+            FROM azure_network_security_group nsg,
+            jsonb_array_elements(security_rules || default_security_rules) sg,
+            jsonb_array_elements_text(CASE 
+                WHEN jsonb_array_length(sg -> 'properties' -> 'destinationPortRanges') > 0 
+                THEN (sg -> 'properties' -> 'destinationPortRanges') 
+                ELSE jsonb_build_array(sg -> 'properties' -> 'destinationPortRange') 
+            END) AS dport
+            WHERE sg -> 'properties' ->> 'access' = 'Allow'
+            AND dport IN ('20', '21', '23', '25', '69', '80', '110', '119', '143', '161', '162', '389', '513', '514')
+        )
+        SELECT 
+            sg_name || ',' || dport || ',' || service_name as nsg_port_service 
+        FROM clear_text_protocols
+        ORDER BY sg_name, dport""", 
+        "clear_text_protocols.csv"),
+    ("Sensitive Management Ports", """
+        WITH sensitive_management_ports AS (
+            SELECT DISTINCT 
+                name AS sg_name,
+                dport,
+                CASE dport
+                    WHEN '22' THEN 'SSH'
+                    WHEN '23' THEN 'Telnet'
+                    WHEN '80' THEN 'HTTP'
+                    WHEN '443' THEN 'HTTPS'
+                    WHEN '3389' THEN 'RDP'
+                    WHEN '5900' THEN 'VNC'
+                    WHEN '21' THEN 'FTP'
+                    WHEN '69' THEN 'TFTP'
+                    WHEN '389' THEN 'LDAP'
+                    WHEN '514' THEN 'syslog'
+                    WHEN '137' THEN 'NetBIOS'
+                    WHEN '138' THEN 'NetBIOS'
+                    WHEN '139' THEN 'NetBIOS'
+                    WHEN '445' THEN 'SMB'
+                    WHEN '88' THEN 'Kerberos'
+                    WHEN '3306' THEN 'MySQL'
+                    WHEN '1433' THEN 'MSSQL'
+                    WHEN '5432' THEN 'PostgreSQL'
+                    WHEN '1521' THEN 'Oracle'
+                    WHEN '6379' THEN 'Redis'
+                    WHEN '25' THEN 'SMTP'
+                    WHEN '465' THEN 'SMTPS'
+                    WHEN '110' THEN 'POP3'
+                END AS service_name
+            FROM azure_network_security_group nsg,
+            jsonb_array_elements(security_rules || default_security_rules) sg,
+            jsonb_array_elements_text(CASE 
+                WHEN jsonb_array_length(sg -> 'properties' -> 'destinationPortRanges') > 0 
+                THEN (sg -> 'properties' -> 'destinationPortRanges') 
+                ELSE jsonb_build_array(sg -> 'properties' -> 'destinationPortRange') 
+            END) AS dport,
+            jsonb_array_elements_text(CASE 
+                WHEN jsonb_array_length(sg -> 'properties' -> 'sourceAddressPrefixes') > 0 
+                THEN (sg -> 'properties' -> 'sourceAddressPrefixes') 
+                ELSE jsonb_build_array(sg -> 'properties' -> 'sourceAddressPrefix') 
+            END) AS sip
+            WHERE sg -> 'properties' ->> 'access' = 'Allow'
+            AND sip IN ('*', '0.0.0.0', '0.0.0.0/0', 'Internet', 'any', '<nw>/0', '/0')
+            AND dport IN ('22', '23', '80', '443', '3389', '5900', '21', '69', '389', '514', 
+                         '137', '138', '139', '445', '88', '3306', '1433', '5432', '1521', 
+                         '6379', '25', '465', '110')
+        )
+        SELECT 
+            sg_name || ',' || dport || ',' || service_name as nsg_port_service
+        FROM sensitive_management_ports
+        ORDER BY sg_name, dport""",
+        "sensitive_management_ports.csv")
 ]
 
 def scan_sql_databases(resource_folder):
@@ -755,7 +865,13 @@ def clear_account_credentials():
 def get_tenant_name():
     """Retrieve the tenant ID using Azure CLI."""
     try:
-        # Get just the tenant ID directly
+        # First check if user is logged in
+        if not check_azure_login():
+            print(f"{Fore.YELLOW}Please login to Azure first{Style.RESET_ALL}")
+            # Try to login
+            subprocess.run(["az", "login", "--output", "none"], check=True)
+            
+        # Now try to get tenant ID
         result = subprocess.run(
             ["az", "account", "show", "--query", "tenantId", "-o", "tsv"], 
             capture_output=True, 
@@ -771,7 +887,8 @@ def get_tenant_name():
         raise ValueError("Empty tenant ID returned")
 
     except subprocess.CalledProcessError as e:
-        print(f"{Fore.RED}Failed to retrieve tenant ID: {str(e)}{Style.RESET_ALL}")
+        print(f"{Fore.RED}Failed to retrieve tenant ID. Please ensure you're logged in to Azure CLI.{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}Error details: {e.stderr.strip() if e.stderr else str(e)}{Style.RESET_ALL}")
         logging.error(f"Failed to retrieve tenant ID: {str(e)}")
         return None
     except Exception as e:
@@ -833,21 +950,31 @@ def initial_menu(update_needed=False, latest_version=None):
                 print(f"{Fore.CYAN}Listing Azure subscriptions...{Style.RESET_ALL}")
                 
                 try:
+                    # First ensure we're logged in
+                    if not check_azure_login():
+                        print(f"{Fore.YELLOW}You need to login first. Initiating login...{Style.RESET_ALL}")
+                        subprocess.run(["az", "login", "--output", "none"], check=True)
+                        print(f"{Fore.GREEN}Login successful{Style.RESET_ALL}")
+
                     # Get the tenant name
                     tenant_name = get_tenant_name()
                     if not tenant_name:
-                        print(f"{Fore.RED}Unable to retrieve tenant name. Please check your Azure CLI configuration.{Style.RESET_ALL}")
+                        print(f"{Fore.RED}Unable to retrieve tenant ID. Please ensure you're logged in correctly.{Style.RESET_ALL}")
                         input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
                         continue
 
                     # Get subscriptions
-                    subscriptions = json.loads(subprocess.run(
-                        ["az", "account", "list", "--query", "[].{id:id, name:name}", "-o", "json"], 
-                        capture_output=True, text=True, check=True
-                    ).stdout)
+                    result = subprocess.run(
+                        ["az", "account", "list", "--query", "[].{id:id, name:name}", "-o", "json"],
+                        capture_output=True,
+                        text=True,
+                        check=True
+                    )
+                    
+                    subscriptions = json.loads(result.stdout)
                     
                     if not subscriptions:
-                        print(f"{Fore.RED}No subscriptions found. Please login first.{Style.RESET_ALL}")
+                        print(f"{Fore.RED}No subscriptions found. Please check your Azure permissions.{Style.RESET_ALL}")
                         input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
                         continue
                     

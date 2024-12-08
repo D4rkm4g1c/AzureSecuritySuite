@@ -133,13 +133,48 @@ def _get_resource_section(resource_type, findings):
         """)
         
         if resources:
+            # Group resources by name
+            grouped_resources = {}
+            for resource in resources:
+                try:
+                    parts = resource.strip().split(',')
+                    if len(parts) >= 3:  # New format: name,port,service
+                        name = parts[0].strip('"')  # Remove quotes if present
+                        port = parts[1].strip()
+                        service = parts[2].strip().strip('"')  # Remove any quotes from service
+                        if name not in grouped_resources:
+                            grouped_resources[name] = []
+                        grouped_resources[name].append((port.strip(), service.strip()))
+                    else:  # Old format or non-port resources
+                        name = resource.strip().strip('"')  # Remove quotes if present
+                        if name not in grouped_resources:
+                            grouped_resources[name] = []
+                except Exception as e:
+                    logging.error(f"Error processing resource {resource}: {str(e)}")
+                    name = resource.strip().strip('"')  # Remove quotes if present
+                    if name not in grouped_resources:
+                        grouped_resources[name] = []
+
             html_parts.append(f"""
-                    Affected resources ({len(resources)}):
-                    <ul>
+                    Affected resources ({len(grouped_resources)}):
+                    <ul class="resource-list">
             """)
-            # Add each affected resource
-            for resource in sorted(set(resources)):
-                html_parts.append(f"<li>{escape(resource)}</li>")
+            
+            # Add each affected resource with its ports
+            for resource_name, ports in sorted(grouped_resources.items()):
+                html_parts.append(f"""
+                    <li class="resource-item">
+                        <div class="resource-name">{escape(resource_name)}
+                """)
+                
+                if ports:  # If there are ports associated
+                    port_strings = []
+                    for port, service in sorted(ports):
+                        port_strings.append(f"{service} ({port})")
+                    html_parts.append(f" ({', '.join(port_strings)})")
+                
+                html_parts.append("</div></li>")
+            
             html_parts.append("</ul>")
         else:
             html_parts.append("<p>No resources vulnerable</p>")
@@ -452,6 +487,206 @@ def _get_css_styles():
             .dark-mode .info-item i {
                 color: #bcd03e;
             }
+            
+            /* Resource View Styles */
+            .resource-type-header {
+                display: flex;
+                align-items: center;
+                gap: 1rem;
+                margin-bottom: 2rem;
+            }
+            
+            .resource-card {
+                background: #ffffff;
+                border: 1px solid #b0d351;
+                border-radius: 12px;
+                padding: 1.5rem;
+                margin-bottom: 1.5rem;
+                transition: all 0.3s ease;
+            }
+            
+            .resource-card:hover {
+                box-shadow: 0 4px 12px rgba(176, 211, 81, 0.15);
+            }
+            
+            .resource-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 1rem;
+                padding-bottom: 0.5rem;
+                border-bottom: 1px solid rgba(176, 211, 81, 0.2);
+            }
+            
+            .resource-header h3 {
+                margin: 0;
+                color: #2d3436;
+                font-size: 1.2rem;
+            }
+            
+            .finding-count {
+                font-size: 0.9rem;
+                color: #64748b;
+                background: rgba(176, 211, 81, 0.1);
+                padding: 0.3rem 0.8rem;
+                border-radius: 20px;
+            }
+            
+            .vuln-list {
+                list-style: none;
+                padding: 0;
+                margin: 0;
+            }
+            
+            .vuln-item {
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+                padding: 0.5rem 0;
+                border-bottom: 1px solid rgba(176, 211, 81, 0.1);
+            }
+            
+            .vuln-item:last-child {
+                border-bottom: none;
+            }
+            
+            .vuln-icon {
+                color: #b0d351;
+                font-size: 0.9rem;
+            }
+            
+            /* Dark mode styles */
+            body.dark-mode {
+                background: #444444;
+                color: #ffffff;
+            }
+            
+            .dark-mode .container {
+                background: #444444;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+            }
+            
+            .dark-mode .resource-card {
+                background: #444444;
+                border-color: #bcd03e;
+            }
+            
+            .dark-mode .resource-header h3 {
+                color: #ffffff;
+            }
+            
+            .dark-mode .finding-count {
+                color: #ffffff;
+                background: rgba(188, 208, 62, 0.2);
+            }
+            
+            .dark-mode .vuln-item {
+                border-color: rgba(188, 208, 62, 0.1);
+                color: #ffffff;
+            }
+            
+            .dark-mode .vuln-icon {
+                color: #bcd03e;
+            }
+            
+            .dark-mode .resource-card:hover {
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            }
+            
+            /* Resource list styling */
+            .resource-list {
+                list-style: none;
+                padding: 0;
+                margin: 0;
+            }
+            
+            .resource-item {
+                margin: 10px 0;
+                padding: 10px;
+                background: #f8f9fa;
+                border-radius: 8px;
+                border: 1px solid #e9ecef;
+            }
+            
+            .dark-mode .resource-item {
+                background: #2d3436;
+                border-color: #636e72;
+            }
+            
+            .resource-name {
+                font-weight: 500;
+                margin-bottom: 5px;
+            }
+            
+            .port-list {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 6px;
+                margin-top: 5px;
+            }
+            
+            .port-badge {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                padding: 4px 12px;
+                background: #b0d351;
+                color: #2d3436;
+                border-radius: 12px;
+                font-size: 0.85em;
+                margin: 2px;
+                white-space: nowrap;
+            }
+            
+            .port-badge::before {
+                content: "🔌";  /* Port emoji */
+                font-size: 0.9em;
+            }
+            
+            .dark-mode .port-badge {
+                background: #bcd03e;
+                color: #2d3436;
+            }
+            
+            .port-list {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+                margin-top: 8px;
+                margin-left: 20px;
+            }
+            
+            .resource-name {
+                font-weight: 600;
+                color: #2d3436;
+            }
+            
+            .dark-mode .resource-name {
+                color: #ffffff;
+            }
+
+            .finding-item {
+                display: flex;
+                align-items: flex-start;
+                gap: 0.75rem;
+                padding: 0.75rem;
+                border-radius: 6px;
+                background: var(--item-bg, #ffffff);
+                margin-bottom: 0.5rem;
+                font-size: 0.95rem;
+                line-height: 1.6;
+            }
+            
+            .finding-icon {
+                color: var(--icon-color, #b0d351);
+                margin-top: 0.2rem;
+                flex-shrink: 0;
+            }
+            
+            .dark-mode .finding-item {
+                background: var(--item-bg, #2d3436);
+                border: 1px solid rgba(176, 211, 81, 0.2);
+            }
         </style>
     """
 
@@ -475,73 +710,141 @@ def _get_executive_summary(total_findings, high_severity, medium_severity, low_s
 
 def _get_resource_overview_section(resource_type, overview_file):
     """Return the HTML for a resource overview section"""
+    icon_map = {
+        'VirtualMachines': 'fa-server',
+        'StorageAccounts': 'fa-database',
+        'AppServices': 'fa-globe',
+        'SQLDatabases': 'fa-table',
+        'KeyVaults': 'fa-key',
+        'NetworkSecurityGroups': 'fa-shield-alt',
+        'PostgreSQLDatabases': 'fa-database',
+        'MySQLDatabases': 'fa-database',
+        'CosmosDB': 'fa-atom'
+    }
+    
+    icon_class = icon_map.get(resource_type, 'fa-cube')
+    
     html_parts = [f"""
         <div class="resource-type resource-view">
-            <h2>{escape(resource_type)}</h2>
+            <div class="resource-type-header">
+                <i class="fas {icon_class} resource-icon"></i>
+                <h2>{escape(resource_type)}</h2>
+            </div>
     """]
     
     resources_dict = {}
+    port_info = {}
     
-    # Read the overview file
+    # First, collect port information from sensitive_management_ports.csv if it exists
+    if resource_type == "NetworkSecurityGroups":
+        ports_file = Path(overview_file).parent / "sensitive_management_ports.csv"
+        if ports_file.exists():
+            with open(ports_file, 'r') as f:
+                for line in f:
+                    if line.strip():
+                        try:
+                            resource, port, service = line.strip().split(',', 2)
+                            resource = resource.strip('"')  # Remove quotes if present
+                            base_name = resource.split(' (')[0]
+                            if base_name not in port_info:
+                                port_info[base_name] = []
+                            port_info[base_name].append((port.strip(), service.strip()))
+                        except Exception as e:
+                            logging.error(f"Error processing port line {line}: {str(e)}")
+    
+    # Now process the overview file
     if overview_file.exists():
         with open(overview_file, 'r') as f:
-            # Skip header if present
-            header = f.readline()
+            header = f.readline()  # Skip header
             for line in f:
                 if line.strip():
-                    # Split on comma and handle potential semicolon-separated vulnerabilities
-                    parts = line.strip().split(',', 1)  # Split only on first comma
-                    if len(parts) >= 2:
-                        resource = parts[0].strip()
-                        vulns = [v.strip() for v in parts[1].split(';') if v.strip()]
-                        if vulns:  # Only add if there are vulnerabilities
-                            resources_dict[resource] = vulns
+                    try:
+                        resource, findings = line.strip().split(',', 1)
+                        resource = resource.strip().strip('"')  # Remove quotes if present
+                        base_name = resource.split(' (')[0]  # Remove port information if present
+                        
+                        if base_name not in resources_dict:
+                            resources_dict[base_name] = {'findings': [], 'ports': []}
+                        
+                        # Process findings
+                        findings_list = [f.strip() for f in findings.split(';') if f.strip()]
+                        
+                        # For NSGs, handle port information specially
+                        if resource_type == "NetworkSecurityGroups" and base_name in port_info:
+                            port_list = [f"{service.strip('"')} {port}" for port, service in port_info[base_name]]
+                            if port_list:
+                                findings_list = [f for f in findings_list if "Sensitive Management Ports" not in f]
+                                findings_list.append(f"Sensitive Management Ports ({', '.join(port_list)})")
+                        
+                        # Store as a single concatenated string
+                        if findings_list and not resources_dict[base_name]['findings']:
+                            resources_dict[base_name]['findings'] = [', '.join(findings_list)]
+                            
+                    except Exception as e:
+                        logging.error(f"Error processing overview line {line}: {str(e)}")
     
     # Generate HTML for each resource
-    for resource, vulns in sorted(resources_dict.items()):
+    for resource, data in sorted(resources_dict.items()):
+        findings = data['findings']
+        total_findings = len(findings)
+        
         html_parts.append(f"""
-            <div class="resource-block">
-                <h3>{escape(resource)}</h3>
-                <div class="vulnerabilities">
-                    <h4>Vulnerabilities Found ({len(vulns)}):</h4>
-                    <ul>
-        """)
-        
-        # Sort vulnerabilities by severity and name
-        sorted_vulns = sorted(vulns, key=lambda x: (
-            0 if any(kw in x.lower() for kw in ['critical', 'high', 'severe', 'unrestricted', 'public']) else
-            1 if any(kw in x.lower() for kw in ['warning', 'medium', 'sensitive']) else 2,
-            x.lower()
-        ))
-        
-        for vuln in sorted_vulns:
-            # Determine severity for each vulnerability
-            severity = "high" if any(kw in vuln.lower() for kw in [
-                'critical', 'high', 'severe', 'unrestricted', 'public'
-            ]) else "medium" if any(kw in vuln.lower() for kw in [
-                'warning', 'medium', 'sensitive'
-            ]) else "low"
-            
-            html_parts.append(f"""
-                <li>
-                    <span class="severity-badge {escape(severity)}">{escape(severity.upper())}</span>
-                    {escape(vuln)}
-                </li>
-            """)
-        
-        html_parts.append("""
-                    </ul>
+            <div class="resource-card">
+                <div class="resource-header">
+                    <h3>{escape(resource)}</h3>
+                    <div class="finding-count">
+                        {total_findings} finding{'s' if total_findings != 1 else ''}
+                    </div>
                 </div>
-            </div>
+                <div class="findings-container">
         """)
+        
+        # Add findings
+        if findings:
+            html_parts.append("""
+                <div class="finding-group">
+                    <div class="finding-group-title">
+                        <i class="fas fa-exclamation-triangle"></i> Security Findings
+                    </div>
+                    <ul class="finding-list">
+            """)
+            
+            for finding in findings:
+                html_parts.append(f"""
+                    <li class="finding-item">
+                        <i class="fas fa-exclamation-circle finding-icon"></i>
+                        {escape(finding)}
+                    </li>
+                """)
+            
+            html_parts.append('</ul></div>')
+        
+        html_parts.append("</div></div>")
     
     html_parts.append("</div>")
+    return '\n'.join(html_parts)
+
+def _generate_vulnerability_list(vulns):
+    """Helper function to generate the vulnerability list HTML"""
+    if not vulns:
+        return "<p>No vulnerabilities found</p>"
+        
+    html_parts = ['<ul class="vuln-list">']
+    for vuln in sorted(vulns):
+        html_parts.append(f"""
+            <li class="vuln-item">
+                <i class="fas fa-exclamation-circle vuln-icon"></i>
+                {escape(vuln)}
+            </li>
+        """)
+    html_parts.append('</ul>')
     return '\n'.join(html_parts)
 
 def _get_javascript():
     return """
         <script>
             document.addEventListener('DOMContentLoaded', function() {
+                // View toggle functionality
                 const vulnView = document.getElementById('vulnView');
                 const resourceView = document.getElementById('resourceView');
                 const vulnSections = document.querySelectorAll('.vulnerability-view');
@@ -580,14 +883,14 @@ def _get_javascript():
                 vulnView.addEventListener('click', showVulnView);
                 resourceView.addEventListener('click', showResourceView);
                 
-                // Add search functionality
+                // Search functionality
                 const searchInput = document.querySelector('.search-input');
                 searchInput.addEventListener('input', function(e) {
                     const searchTerm = e.target.value.toLowerCase();
                     const currentView = vulnView.classList.contains('active') ? 'vulnerability' : 'resource';
                     const sections = currentView === 'vulnerability' ? 
                         document.querySelectorAll('.finding') : 
-                        document.querySelectorAll('.resource-block');
+                        document.querySelectorAll('.resource-card');
                     
                     sections.forEach(section => {
                         const text = section.textContent.toLowerCase();
@@ -601,25 +904,20 @@ def _get_javascript():
                 const icon = themeToggle.querySelector('i');
                 
                 // Check for saved theme preference
-                const darkMode = localStorage.getItem('darkMode');
-                if (darkMode === 'enabled') {
+                if (localStorage.getItem('darkMode') === 'enabled') {
                     body.classList.add('dark-mode');
-                    icon.classList.remove('fa-moon');
-                    icon.classList.add('fa-sun');
+                    icon.classList.replace('fa-moon', 'fa-sun');
                 }
                 
                 themeToggle.addEventListener('click', () => {
                     body.classList.toggle('dark-mode');
                     
-                    // Update icon
                     if (body.classList.contains('dark-mode')) {
-                        icon.classList.remove('fa-moon');
-                        icon.classList.add('fa-sun');
+                        icon.classList.replace('fa-moon', 'fa-sun');
                         localStorage.setItem('darkMode', 'enabled');
                     } else {
-                        icon.classList.remove('fa-sun');
-                        icon.classList.add('fa-moon');
-                        localStorage.setItem('darkMode', null);
+                        icon.classList.replace('fa-sun', 'fa-moon');
+                        localStorage.removeItem('darkMode');
                     }
                 });
             });
@@ -706,3 +1004,69 @@ def _get_additional_css():
         .severity-dot.medium { background: #ffeaa7; }
         .severity-dot.low { background: #55efc4; }
     """
+
+def _get_vulnerability_section(vuln_name, affected_resources, resource_type, resource_folder):
+    """Return the HTML for a vulnerability section"""
+    html_parts = [f"""
+        <div class="finding vulnerability-view">
+            <div class="finding-name">{escape(vuln_name)}</div>
+            <div class="affected-resources">
+    """]
+
+    if not affected_resources:
+        html_parts.append("<p>No resources vulnerable</p>")
+    else:
+        # Group resources by base name and collect their ports
+        grouped_resources = {}
+        for resource in affected_resources:
+            base_name = resource.split(' (')[0]
+            if base_name not in grouped_resources:
+                grouped_resources[base_name] = set()
+            if ' (' in resource:
+                port = resource.split(' (')[1].rstrip(')')
+                grouped_resources[base_name].add(port)
+
+        # Get port information for NSGs if available
+        port_info = {}
+        if resource_type == "NetworkSecurityGroups":
+            ports_file = Path(resource_folder) / "sensitive_management_ports.csv"
+            if ports_file.exists():
+                with open(ports_file, 'r') as f:
+                    for line in f:
+                        if line.strip():
+                            try:
+                                resource, port, service = line.strip().split(',', 2)
+                                resource = resource.strip('"')
+                                base_name = resource.split(' (')[0]
+                                if base_name not in port_info:
+                                    port_info[base_name] = []
+                                port_info[base_name].append((port.strip(), service.strip()))
+                            except Exception as e:
+                                logging.error(f"Error processing port line {line}: {str(e)}")
+
+        html_parts.append(f"""
+            Affected resources ({len(grouped_resources)}):
+            <ul class="resource-list">
+        """)
+
+        for resource in sorted(grouped_resources.keys()):
+            # For NSGs with port information
+            if resource_type == "NetworkSecurityGroups" and resource in port_info:
+                ports = port_info[resource]
+                if ports:
+                    # Simple text format: "SSH 22, RDP 3389" etc.
+                    port_str = f" ({', '.join(f'{service} {port}' for port, service in sorted(ports))})"
+                else:
+                    port_str = ""
+            else:
+                ports = grouped_resources[resource]
+                port_str = f" ({', '.join(sorted(ports))})" if ports else ""
+
+            html_parts.append(f"""
+                <li class="resource-item">
+                    {escape(resource)}{escape(port_str)}
+                </li>
+            """)
+
+    html_parts.append('</ul></div></div>')
+    return '\n'.join(html_parts)
