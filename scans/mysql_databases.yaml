@@ -1,0 +1,18 @@
+scans:
+  - name: "Non-compliant TLS Versions"
+    query: >-
+      WITH tls_version AS (
+        SELECT id 
+        FROM azure_mysql_flexible_server, 
+        jsonb_array_elements(flexible_server_configurations) AS config 
+        WHERE config ->> 'Name' = 'tls_version' 
+        AND config ->> 'Value' NOT IN ('TLS1_2', 'TLS1_3')
+      ) 
+      SELECT id 
+      FROM tls_version
+    output_file: "tls_noncompliant_servers.csv"
+    severity: "HIGH"
+    description: "MySQL servers using outdated TLS versions"
+    remediation: "Upgrade to TLS 1.2 or 1.3"
+    references:
+      - "https://docs.microsoft.com/azure/mysql/concepts-ssl-connection-security"

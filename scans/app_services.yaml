@@ -1,0 +1,145 @@
+scans:
+  - name: "Web App Authentication Settings"
+    query: >-
+      SELECT name 
+      FROM azure_app_service_web_app AS app
+    output_file: "web_app_auth_settings.csv"
+    severity: "MEDIUM"
+    description: "Review web app authentication settings"
+    remediation: "Configure appropriate authentication settings for web apps"
+    references:
+      - "https://docs.microsoft.com/azure/app-service/configure-authentication-provider-aad"
+
+  - name: "Function App Authentication Settings"
+    query: >-
+      SELECT name 
+      FROM azure_app_service_function_app
+    output_file: "function_app_auth_settings.csv"
+    severity: "MEDIUM"
+    description: "Review function app authentication settings"
+    remediation: "Configure appropriate authentication settings for function apps"
+    references:
+      - "https://docs.microsoft.com/azure/app-service/configure-authentication-provider-aad"
+
+  - name: "HTTPS Only Not Enabled"
+    query: >-
+      SELECT name 
+      FROM azure_app_service_web_app 
+      WHERE NOT https_only
+    output_file: "web_app_https_only.csv"
+    severity: "HIGH"
+    description: "Web apps not configured for HTTPS-only access"
+    remediation: "Enable HTTPS-only mode to enforce secure communications"
+    references:
+      - "https://docs.microsoft.com/azure/app-service/configure-ssl-bindings#enforce-https"
+
+  - name: "Client Certificates Not Enabled"
+    query: >-
+      SELECT app.name 
+      FROM azure_app_service_function_app AS app 
+      WHERE NOT app.client_cert_enabled
+    output_file: "function_app_client_cert.csv"
+    severity: "MEDIUM"
+    description: "Function apps not requiring client certificates"
+    remediation: "Enable client certificate authentication for enhanced security"
+    references:
+      - "https://docs.microsoft.com/azure/app-service/app-service-web-configure-tls-mutual-auth"
+
+  - name: "Managed Identity Not Configured"
+    query: >-
+      SELECT app.name 
+      FROM azure_app_service_web_app AS app 
+      WHERE app.identity = '{}'
+    output_file: "web_app_managed_identity.csv"
+    severity: "MEDIUM"
+    description: "Web apps not using managed identities"
+    remediation: "Configure managed identities for secure access to Azure resources"
+    references:
+      - "https://docs.microsoft.com/azure/app-service/overview-managed-identity"
+
+  - name: "HTTP/2 Not Enabled"
+    query: >-
+      SELECT name 
+      FROM azure_app_service_web_app 
+      WHERE (configuration -> 'properties' ->> 'http20Enabled')::boolean = false 
+      OR (configuration -> 'properties' ->> 'http20Enabled') IS NULL
+    output_file: "web_app_http2.csv"
+    severity: "LOW"
+    description: "HTTP/2 protocol not enabled"
+    remediation: "Enable HTTP/2 protocol for improved performance"
+    references:
+      - "https://docs.microsoft.com/azure/app-service/configure-language-nodejs#enable-http20"
+
+  - name: "FTPS State Insecure"
+    query: >-
+      SELECT name 
+      FROM azure_app_service_web_app 
+      WHERE configuration -> 'properties' ->> 'ftpsState' = 'AllAllowed'
+    output_file: "web_app_ftps_state.csv"
+    severity: "HIGH"
+    description: "FTP access is allowed without encryption"
+    remediation: "Disable FTP or enforce FTPS-only access"
+    references:
+      - "https://docs.microsoft.com/azure/app-service/deploy-ftp#enforce-ftps"
+
+  - name: "Client Certificates Not Required"
+    query: >-
+      SELECT app.name AS resource 
+      FROM azure_app_service_web_app AS app, azure_subscription AS sub 
+      WHERE NOT client_cert_enabled 
+      AND sub.subscription_id = app.subscription_id
+    output_file: "app_names_no_client_cert.csv"
+    severity: "MEDIUM"
+    description: "Web apps not requiring client certificates"
+    remediation: "Enable client certificate requirement for mutual TLS authentication"
+    references:
+      - "https://docs.microsoft.com/azure/app-service/app-service-web-configure-tls-mutual-auth"
+
+  - name: "Outdated TLS Version (Web Apps)"
+    query: >-
+      SELECT app.name AS resource 
+      FROM azure_app_service_web_app AS app, azure_subscription AS sub 
+      WHERE (configuration -> 'properties' ->> 'minTlsVersion') < '1.2' 
+      AND sub.subscription_id = app.subscription_id
+    output_file: "app_names_tls_v1_2.csv"
+    severity: "HIGH"
+    description: "Web apps using TLS version lower than 1.2"
+    remediation: "Upgrade minimum TLS version to 1.2 or higher"
+    references:
+      - "https://docs.microsoft.com/azure/app-service/configure-ssl-bindings#enforce-tls-versions"
+
+  - name: "Outdated TLS Version (Function Apps)"
+    query: >-
+      SELECT app.name AS resource 
+      FROM azure_app_service_function_app AS app, azure_subscription AS sub 
+      WHERE (configuration -> 'properties' ->> 'minTlsVersion') < '1.2' 
+      AND sub.subscription_id = app.subscription_id
+    output_file: "function_app_names_tls_v1_2.csv"
+    severity: "HIGH"
+    description: "Function apps using TLS version lower than 1.2"
+    remediation: "Upgrade minimum TLS version to 1.2 or higher"
+    references:
+      - "https://docs.microsoft.com/azure/app-service/configure-ssl-bindings#enforce-tls-versions"
+
+  - name: "Outdated TLS Version (API Apps)"
+    query: >-
+      WITH all_api_app AS (
+        SELECT id, name 
+        FROM azure_app_service_web_app 
+        WHERE EXISTS (
+          SELECT 1 
+          FROM unnest(regexp_split_to_array(kind, ',')) elem 
+          WHERE elem LIKE '%api'
+        )
+      ) 
+      SELECT a.name AS app_name 
+      FROM azure_app_service_web_app AS a 
+      LEFT JOIN all_api_app AS b ON a.id = b.id 
+      WHERE b.id IS NOT NULL 
+      AND (configuration -> 'properties' ->> 'minTlsVersion') < '1.2'
+    output_file: "api_app_tls_check.csv"
+    severity: "HIGH"
+    description: "API apps using TLS version lower than 1.2"
+    remediation: "Upgrade minimum TLS version to 1.2 or higher"
+    references:
+      - "https://docs.microsoft.com/azure/app-service/configure-ssl-bindings#enforce-tls-versions" 

@@ -1,0 +1,52 @@
+scans:
+  - name: "Log Checkpoints Configuration"
+    query: >-
+      WITH log_checkpoints_on AS (
+        SELECT id 
+        FROM azure_postgresql_flexible_server, 
+        jsonb_array_elements(flexible_server_configurations) AS config 
+        WHERE config ->> 'Name' = 'log_checkpoints' 
+        AND config ->> 'Value' = 'on'
+      ) 
+      SELECT id 
+      FROM log_checkpoints_on
+    output_file: "log_checkpoints_configuration.csv"
+    severity: "MEDIUM"
+    description: "PostgreSQL servers without checkpoint logging enabled"
+    remediation: "Enable checkpoint logging"
+    references:
+      - "https://docs.microsoft.com/azure/postgresql/concepts-server-logs"
+
+  - name: "Connection Throttling Configuration"
+    query: >-
+      WITH connection_throttling_off AS (
+        SELECT id 
+        FROM azure_postgresql_flexible_server, 
+        jsonb_array_elements(flexible_server_configurations) AS config 
+        WHERE config ->> 'Name' = 'connection_throttling' 
+        AND config ->> 'Value' = 'off'
+      ) 
+      SELECT id 
+      FROM connection_throttling_off
+    output_file: "connection_throttling_configuration.csv"
+    severity: "HIGH"
+    description: "PostgreSQL servers without connection throttling"
+    remediation: "Enable connection throttling"
+    references:
+      - "https://docs.microsoft.com/azure/postgresql/concepts-connectivity"
+
+  - name: "Log Files Retention Days"
+    query: >-
+      SELECT s.id AS resource 
+      FROM azure_postgresql_flexible_server s, 
+      jsonb_array_elements(flexible_server_configurations) AS config, 
+      azure_subscription sub 
+      WHERE config ->> 'Name' = 'logfiles.retention_days' 
+      AND (config -> 'ConfigurationProperties' ->> 'value')::integer <= 3 
+      AND sub.subscription_id = s.subscription_id
+    output_file: "logfiles_retention_alarm.csv"
+    severity: "MEDIUM"
+    description: "PostgreSQL servers with short log retention periods"
+    remediation: "Increase log retention period"
+    references:
+      - "https://docs.microsoft.com/azure/postgresql/concepts-server-logs#log-retention"

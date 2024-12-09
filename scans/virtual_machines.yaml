@@ -1,0 +1,29 @@
+scans:
+  - name: "Unmanaged Disks"
+    query: >-
+      SELECT vm.name 
+      FROM azure_compute_virtual_machine AS vm, 
+      azure_subscription AS sub 
+      WHERE sub.subscription_id = vm.subscription_id 
+      AND managed_disk_id IS NULL
+    output_file: "unmanaged_disks.csv"
+    severity: "HIGH"
+    description: "Virtual machines using unmanaged disks"
+    remediation: "Convert to managed disks"
+    references:
+      - "https://docs.microsoft.com/azure/virtual-machines/windows/convert-unmanaged-to-managed-disks"
+
+  - name: "Unencrypted Disks"
+    query: >-
+      SELECT disk.name 
+      FROM azure_compute_disk AS disk, 
+      azure_subscription AS sub 
+      WHERE disk_state != 'Attached' 
+      AND sub.subscription_id = disk.subscription_id 
+      AND encryption_type != 'EncryptionAtRestWithCustomerKey'
+    output_file: "unencrypted_disks.csv"
+    severity: "CRITICAL"
+    description: "Disks without encryption at rest using customer key"
+    remediation: "Enable encryption at rest with customer-managed keys"
+    references:
+      - "https://docs.microsoft.com/azure/virtual-machines/disk-encryption"

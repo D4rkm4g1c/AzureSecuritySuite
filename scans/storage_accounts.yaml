@@ -1,0 +1,84 @@
+scans:
+  - name: "Public Blob Access Enabled"
+    query: >-
+      SELECT name 
+      FROM azure_storage_account 
+      WHERE allow_blob_public_access = true
+    output_file: "public_blob_access.csv"
+    severity: "HIGH"
+    description: "Storage accounts with public blob access enabled"
+    remediation: "Disable public blob access"
+    references:
+      - "https://docs.microsoft.com/azure/storage/blobs/anonymous-read-access-prevent"
+
+  - name: "Soft Delete Disabled"
+    query: >-
+      SELECT name 
+      FROM azure_storage_account 
+      WHERE blob_soft_delete_enabled = false
+    output_file: "soft_delete_disabled.csv"
+    severity: "MEDIUM"
+    description: "Storage accounts without soft delete enabled"
+    remediation: "Enable soft delete"
+    references:
+      - "https://docs.microsoft.com/azure/storage/blobs/soft-delete-blob-overview"
+
+  - name: "Network Default Allow"
+    query: >-
+      SELECT name 
+      FROM azure_storage_account 
+      WHERE network_rule_default_action = 'Allow'
+    output_file: "network_default_allow.csv"
+    severity: "HIGH"
+    description: "Storage accounts with default network access set to allow"
+    remediation: "Set default network access to deny"
+    references:
+      - "https://docs.microsoft.com/azure/storage/common/storage-network-security"
+
+  - name: "Infrastructure Encryption Disabled"
+    query: >-
+      SELECT name 
+      FROM azure_storage_account 
+      WHERE require_infrastructure_encryption IS NOT TRUE
+    output_file: "infrastructure_encryption.csv"
+    severity: "HIGH"
+    description: "Storage accounts without infrastructure encryption"
+    remediation: "Enable infrastructure encryption"
+    references:
+      - "https://docs.microsoft.com/azure/storage/common/infrastructure-encryption-enable"
+
+  - name: "HTTPS Traffic Only Disabled"
+    query: >-
+      SELECT name 
+      FROM azure_storage_account 
+      WHERE enable_https_traffic_only = 'False'
+    output_file: "https_traffic_only.csv"
+    severity: "CRITICAL"
+    description: "Storage accounts not enforcing HTTPS"
+    remediation: "Enable HTTPS-only traffic"
+    references:
+      - "https://docs.microsoft.com/azure/storage/common/storage-require-secure-transfer"
+
+  - name: "Insecure TLS Version"
+    query: >-
+      SELECT name 
+      FROM azure_storage_account 
+      WHERE minimum_tls_version IN ('TLS1_0', 'TLS1_1')
+    output_file: "tls_version.csv"
+    severity: "HIGH"
+    description: "Storage accounts using outdated TLS versions"
+    remediation: "Upgrade to TLS 1.2 or higher"
+    references:
+      - "https://docs.microsoft.com/azure/storage/common/transport-layer-security-configure-minimum-version"
+
+  - name: "Blob Versioning Disabled"
+    query: >-
+      SELECT name 
+      FROM azure_storage_account 
+      WHERE blob_versioning_enabled IS NOT TRUE
+    output_file: "blob_versioning.csv"
+    severity: "MEDIUM"
+    description: "Storage accounts without blob versioning"
+    remediation: "Enable blob versioning"
+    references:
+      - "https://docs.microsoft.com/azure/storage/blobs/versioning-overview"

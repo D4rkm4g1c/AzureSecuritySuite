@@ -1,0 +1,12 @@
+scans:
+  - name: "No Firewall"
+    query: >-
+      SELECT name 
+      FROM azure_cosmosdb_account 
+      WHERE is_virtual_network_filter_enabled = false
+    output_file: "cosmosdb_no_firewall.csv"
+    severity: "HIGH"
+    description: "Cosmos DB accounts without network filtering enabled"
+    remediation: "Enable virtual network filtering"
+    references:
+      - "https://docs.microsoft.com/azure/cosmos-db/how-to-configure-firewall"

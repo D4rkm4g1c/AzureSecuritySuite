@@ -14,8 +14,9 @@ import requests
 from pathlib import Path
 import csv
 from html import escape
-from typing import Dict, List
+from typing import Dict, List, Tuple, Optional
 from report_generator import generate_html_report
+import yaml
 
 # Initialize colorama for cross-platform color support
 init(autoreset=True) 
@@ -562,25 +563,57 @@ def run_all_scans(resource_folders):
     try:
         print(f"\n{Fore.CYAN}Running all security scans...{Style.RESET_ALL}")
         
-        # Dictionary mapping resource types to their scan functions
-        scan_functions = {
-            "VirtualMachines": (scan_virtual_machines, scan_virtual_machines.scans),
-            "StorageAccounts": (scan_storage_accounts, scan_storage_accounts.scans),
-            "AppServices": (scan_app_services, scan_app_services.scans),
-            "NetworkSecurityGroups": (scan_network_security_groups, scan_network_security_groups.scans),
-            "SQLDatabases": (scan_sql_databases, scan_sql_databases.scans),
-            "KeyVaults": (scan_key_vaults, scan_key_vaults.scans),
-            "PostgreSQLDatabases": (scan_postgresql_databases, scan_postgresql_databases.scans),
-            "MySQLDatabases": (scan_mysql_databases, scan_mysql_databases.scans),
-            "CosmosDB": (scan_cosmos_db, scan_cosmos_db.scans)
+        # Map folder names to their corresponding YAML files - exact filename matches
+        resource_types = {
+            "VirtualMachines": "virtual_machines",
+            "StorageAccounts": "storage_accounts",
+            "AppServices": "app_services",
+            "NetworkSecurityGroups": "network_security_groups",
+            "SQLDatabases": "sql_databases",
+            "KeyVaults": "key_vaults",
+            "PostgreSQLDatabases": "postgresql_databases",
+            "MySQLDatabases": "mysql_databases",
+            "CosmosDB": "cosmos_db"
         }
         
-        for resource_type, (_, scans) in scan_functions.items():
-            print(f"\n{Fore.CYAN}Running {resource_type} scans...{Style.RESET_ALL}")
-            run_scans(resource_folders[resource_type], scans, resource_type)
-            
-        print(f"\n{Fore.GREEN}✓ All scans completed{Style.RESET_ALL}")
+        # Debug: Print current working directory
+        print(f"{Fore.YELLOW}Current working directory: {os.getcwd()}{Style.RESET_ALL}")
         
+        total_scans = 0
+        successful_scans = 0
+        
+        for folder_name, yaml_name in resource_types.items():
+            if folder_name in resource_folders:
+                print(f"\n{Fore.CYAN}Running {folder_name} scans...{Style.RESET_ALL}")
+                try:
+                    scans = load_scan_definitions(yaml_name)
+                    if scans:
+                        total_scans += len(scans)
+                        for scan in scans:
+                            try:
+                                output_path = os.path.join(resource_folders[folder_name], scan['output_file'])
+                                if run_steampipe_query(scan['query'], output_path):
+                                    successful_scans += 1
+                                    print(f"{Fore.GREEN}✓ {scan['name']} completed successfully{Style.RESET_ALL}")
+                                else:
+                                    print(f"{Fore.RED}✗ {scan['name']} failed{Style.RESET_ALL}")
+                            except Exception as e:
+                                print(f"{Fore.RED}Error in {scan['name']}: {str(e)}{Style.RESET_ALL}")
+                    else:
+                        print(f"{Fore.YELLOW}No scans found for {folder_name} in {yaml_name}.yaml{Style.RESET_ALL}")
+                except Exception as e:
+                    print(f"{Fore.RED}Error running {folder_name} scans: {str(e)}{Style.RESET_ALL}")
+                    
+        print(f"\n{Fore.CYAN}Scan Summary:{Style.RESET_ALL}")
+        print(f"Total Scans: {total_scans}")
+        print(f"Successful: {successful_scans}")
+        print(f"Failed: {total_scans - successful_scans}")
+        
+        if successful_scans == total_scans:
+            print(f"\n{Fore.GREEN}✓ All scans completed successfully{Style.RESET_ALL}")
+        else:
+            print(f"\n{Fore.YELLOW}! Some scans failed. Check the output above for details{Style.RESET_ALL}")
+            
     except Exception as e:
         print(f"{Fore.RED}Error running all scans: {str(e)}{Style.RESET_ALL}")
         logging.error(f"Error running all scans: {str(e)}")
@@ -622,215 +655,109 @@ def run_selected_scans(resource_folder, selected_scans, scan_type):
         print(f"{Fore.RED}Error running selected scans: {str(e)}{Style.RESET_ALL}")
         logging.error(f"Error running selected scans: {str(e)}")
 
-def scan_resource_group(resource_folder, scans, resource_type):
-    """Handle scanning for a specific resource group with a loop."""
-    while True:
-        selected_scans = display_scan_submenu(scans, resource_type)
-        if selected_scans is None:  # User selected back
+def scan_resource_group(resource_folder: str, scan_type: str) -> None:
+    """Run scans for a resource group using YAML definitions."""
+    try:
+        scans = load_scan_definitions(scan_type)
+        if not scans:
+            print(f"{Fore.YELLOW}No scan definitions found for {scan_type}{Style.RESET_ALL}")
             return
+
+        print(f"\n{Fore.CYAN}Running {len(scans)} scans for {scan_type}...{Style.RESET_ALL}")
+        
+        for scan in scans:
+            scan_name = scan['name']
+            query = scan['query']
+            output_file = os.path.join(resource_folder, scan['output_file'])
+            severity = scan.get('severity', 'UNKNOWN')
             
-        run_selected_scans(resource_folder, selected_scans, resource_type)
-        print(f"\n{Fore.CYAN}Completed {resource_type} scan(s).{Style.RESET_ALL}")
-        input(f"{Fore.YELLOW}Press Enter to continue...{Style.RESET_ALL}")
-        clear_screen()
-        print_banner()
+            print(f"\n{Fore.YELLOW}Running scan: {scan_name} (Severity: {severity}){Style.RESET_ALL}")
+            
+            if run_steampipe_query(query, output_file):
+                print(f"{Fore.GREEN}✓ Scan completed: {scan_name}{Style.RESET_ALL}")
+                if os.path.exists(output_file) and os.path.getsize(output_file) > 0:
+                    print(f"{Fore.RED}! Found issues - check {output_file}{Style.RESET_ALL}")
+                    if 'remediation' in scan:
+                        print(f"{Fore.YELLOW}Remediation: {scan['remediation']}{Style.RESET_ALL}")
+            else:
+                print(f"{Fore.RED}✗ Scan failed: {scan_name}{Style.RESET_ALL}")
+
+    except Exception as e:
+        logging.error(f"Error in scan_resource_group for {scan_type}: {str(e)}")
+        print(f"{Fore.RED}Error running scans: {str(e)}{Style.RESET_ALL}")
+
+def load_scan_definitions(scan_type: str) -> List[Dict]:
+    """Load scan definitions from YAML file.
+    
+    Args:
+        scan_type: The type of scan (e.g., 'virtual_machines', 'storage_accounts')
+        
+    Returns:
+        List of scan definitions with their metadata
+    """
+    try:
+        # Get the directory where the script is located
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        scans_dir = os.path.join(script_dir, 'scans')
+        yaml_file = os.path.join(scans_dir, f'{scan_type}.yaml')
+        
+        # Debug logging
+        print(f"{Fore.YELLOW}Looking for scan definitions at: {yaml_file}{Style.RESET_ALL}")
+        
+        if not os.path.exists(scans_dir):
+            print(f"{Fore.RED}Scans directory not found at: {scans_dir}{Style.RESET_ALL}")
+            return []
+            
+        if not os.path.exists(yaml_file):
+            print(f"{Fore.RED}Scan file not found at: {yaml_file}{Style.RESET_ALL}")
+            return []
+
+        with open(yaml_file, 'r') as f:
+            scan_data = yaml.safe_load(f)
+            count = len(scan_data.get('scans', []))
+            print(f"{Fore.GREEN}Loaded {count} scan definitions from {yaml_file}{Style.RESET_ALL}")
+            return scan_data.get('scans', [])
+                
+    except Exception as e:
+        print(f"{Fore.RED}Error loading scan definitions for {scan_type}: {str(e)}{Style.RESET_ALL}")
+        logging.error(f"Error loading scan definitions for {scan_type}: {str(e)}")
+        return []
 
 def scan_virtual_machines(resource_folder):
     """Run Steampipe scans for virtual machines."""
-    if hasattr(scan_virtual_machines, 'scans'):
-        scan_resource_group(resource_folder, scan_virtual_machines.scans, "VirtualMachines")
-
-scan_virtual_machines.scans = [
-    ("Unmanaged Disks", "SELECT vm.name FROM azure_compute_virtual_machine AS vm, azure_subscription AS sub WHERE sub.subscription_id = vm.subscription_id AND managed_disk_id IS NULL", "unmanaged_disks.csv"),
-    ("Unencrypted Disks", "SELECT disk.name FROM azure_compute_disk AS disk, azure_subscription AS sub WHERE disk_state != 'Attached' AND sub.subscription_id = disk.subscription_id AND encryption_type != 'EncryptionAtRestWithCustomerKey'", "unencrypted_disks.csv")
-]
+    scan_resource_group(resource_folder, 'virtual_machines')
 
 def scan_storage_accounts(resource_folder):
     """Run Steampipe scans for storage accounts."""
-    if hasattr(scan_storage_accounts, 'scans'):
-        scan_resource_group(resource_folder, scan_storage_accounts.scans, "StorageAccounts")
-
-scan_storage_accounts.scans = [
-    ("Public Blob Access Enabled", "SELECT name FROM azure_storage_account WHERE allow_blob_public_access = true", "public_blob_access.csv"),
-    ("Soft Delete Disabled", "SELECT name FROM azure_storage_account WHERE blob_soft_delete_enabled = false", "soft_delete_disabled.csv"),
-    ("Network Default Allow", "SELECT name FROM azure_storage_account WHERE network_rule_default_action = 'Allow'", "network_default_allow.csv"),
-    ("Infrastructure Encryption Disabled", "SELECT name FROM azure_storage_account WHERE require_infrastructure_encryption IS NOT TRUE", "infrastructure_encryption.csv"),
-    ("HTTPS Traffic Only Disabled", "SELECT name FROM azure_storage_account WHERE enable_https_traffic_only = 'False'", "https_traffic_only.csv"),
-    ("Insecure TLS Version", "SELECT name FROM azure_storage_account WHERE minimum_tls_version IN ('TLS1_0', 'TLS1_1')", "tls_version.csv"),
-    ("Blob Versioning Disabled", "SELECT name FROM azure_storage_account WHERE blob_versioning_enabled IS NOT TRUE", "blob_versioning.csv")
-]
-
-def scan_app_services(resource_folder):
-    """Run Steampipe scans for App Services."""
-    if hasattr(scan_app_services, 'scans'):
-        scan_resource_group(resource_folder, scan_app_services.scans, "AppServices")
-
-scan_app_services.scans = [
-    ("Web App Auth Settings", "SELECT name FROM azure_app_service_web_app AS app", "web_app_auth_settings.csv"),
-    ("Function App Auth Settings", "SELECT name FROM azure_app_service_function_app", "function_app_auth_settings.csv"),
-    ("Web Apps for HTTPS Only", "SELECT name FROM azure_app_service_web_app WHERE NOT https_only", "web_app_https_only.csv"),
-    ("Function Apps for Client Certs", "SELECT app.name FROM azure_app_service_function_app AS app WHERE NOT app.client_cert_enabled", "function_app_client_cert.csv"),
-    ("Web Apps for Managed Identity", "SELECT app.name FROM azure_app_service_web_app AS app WHERE app.identity = '{}'", "web_app_managed_identity.csv"),
-    ("Web Apps for HTTP/2 Enabled", "SELECT name FROM azure_app_service_web_app WHERE (configuration -> 'properties' ->> 'http20Enabled')::boolean = false OR (configuration -> 'properties' ->> 'http20Enabled') IS NULL", "web_app_http2.csv"),
-    ("Web Apps for FTPS State", "SELECT name FROM azure_app_service_web_app WHERE configuration -> 'properties' ->> 'ftpsState' = 'AllAllowed'", "web_app_ftps_state.csv"),
-    ("Web Apps with No Client Cert", "SELECT app.name AS resource FROM azure_app_service_web_app AS app, azure_subscription AS sub WHERE NOT client_cert_enabled AND sub.subscription_id = app.subscription_id", "app_names_no_client_cert.csv"),
-    ("Web Apps for TLS Version < 1.2", "SELECT app.name AS resource FROM azure_app_service_web_app AS app, azure_subscription AS sub WHERE (configuration -> 'properties' ->> 'minTlsVersion') < '1.2' AND sub.subscription_id = app.subscription_id", "app_names_tls_v1_2.csv"),
-    ("Function Apps for TLS Version < 1.2", "SELECT app.name AS resource FROM azure_app_service_function_app AS app, azure_subscription AS sub WHERE (configuration -> 'properties' ->> 'minTlsVersion') < '1.2' AND sub.subscription_id = app.subscription_id", "function_app_names_tls_v1_2.csv"),
-    ("API Apps for TLS Version Check", "WITH all_api_app AS (SELECT id, name FROM azure_app_service_web_app WHERE EXISTS (SELECT 1 FROM unnest(regexp_split_to_array(kind, ',')) elem WHERE elem LIKE '%api')) SELECT a.name AS app_name FROM azure_app_service_web_app AS a LEFT JOIN all_api_app AS b ON a.id = b.id WHERE b.id IS NOT NULL AND (configuration -> 'properties' ->> 'minTlsVersion') < '1.2'", "api_app_tls_check.csv")
-]
+    scan_resource_group(resource_folder, 'storage_accounts')
 
 def scan_network_security_groups(resource_folder):
-    """Run Steampipe scans for Network Security Groups."""
-    if hasattr(scan_network_security_groups, 'scans'):
-        scan_resource_group(resource_folder, scan_network_security_groups.scans, "NetworkSecurityGroups")
-
-scan_network_security_groups.scans = [
-    ("Unrestricted Inbound/Outbound Rules", "WITH unrestricted_inbound AS (SELECT DISTINCT name AS sg_name FROM azure_network_security_group nsg, jsonb_array_elements(security_rules || default_security_rules) sg, jsonb_array_elements_text(CASE WHEN jsonb_array_length(sg -> 'properties' -> 'destinationPortRanges') > 0 THEN (sg -> 'properties' -> 'destinationPortRanges') ELSE jsonb_build_array(sg -> 'properties' -> 'destinationPortRange') END) AS dport, jsonb_array_elements_text(CASE WHEN jsonb_array_length(sg -> 'properties' -> 'sourceAddressPrefixes') > 0 THEN (sg -> 'properties' -> 'sourceAddressPrefixes') ELSE jsonb_build_array(sg -> 'properties' -> 'sourceAddressPrefix') END) AS sip WHERE sg -> 'properties' ->> 'access' = 'Allow' AND sg -> 'properties' ->> 'direction' = 'Inbound' AND sip IN ('*', '0.0.0.0', '0.0.0.0/0', 'Internet', 'any', '<nw>/0', '/0') AND dport = '*'), unrestricted_outbound AS (SELECT DISTINCT name AS sg_name FROM azure_network_security_group nsg, jsonb_array_elements(security_rules || default_security_rules) sg, jsonb_array_elements_text(CASE WHEN jsonb_array_length(sg -> 'properties' -> 'destinationPortRanges') > 0 THEN (sg -> 'properties' -> 'destinationPortRanges') ELSE jsonb_build_array(sg -> 'properties' -> 'destinationPortRange') END) AS dport, jsonb_array_elements_text(CASE WHEN jsonb_array_length(sg -> 'properties' -> 'sourceAddressPrefixes') > 0 THEN (sg -> 'properties' -> 'sourceAddressPrefixes') ELSE jsonb_build_array(sg -> 'properties' -> 'sourceAddressPrefix') END) AS sip WHERE sg -> 'properties' ->> 'access' = 'Allow' AND sg -> 'properties' ->> 'direction' = 'Outbound' AND sip IN ('*', '0.0.0.0', '0.0.0.0/0', 'Internet', 'any', '<nw>/0', '/0') AND dport = '*') SELECT sg_name FROM unrestricted_inbound UNION SELECT sg_name FROM unrestricted_outbound", "unrestricted_rules.csv"),
-    ("Clear Text Protocols", """
-        WITH clear_text_protocols AS (
-            SELECT DISTINCT 
-                name AS sg_name,
-                dport,
-                CASE dport
-                    WHEN '20' THEN 'FTP-Data'
-                    WHEN '21' THEN 'FTP'
-                    WHEN '23' THEN 'Telnet'
-                    WHEN '25' THEN 'SMTP'
-                    WHEN '69' THEN 'TFTP'
-                    WHEN '80' THEN 'HTTP'
-                    WHEN '110' THEN 'POP3'
-                    WHEN '119' THEN 'NNTP'
-                    WHEN '143' THEN 'IMAP'
-                    WHEN '161' THEN 'SNMP'
-                    WHEN '162' THEN 'SNMP-Trap'
-                    WHEN '389' THEN 'LDAP'
-                    WHEN '513' THEN 'rlogin'
-                    WHEN '514' THEN 'syslog'
-                END AS service_name
-            FROM azure_network_security_group nsg,
-            jsonb_array_elements(security_rules || default_security_rules) sg,
-            jsonb_array_elements_text(CASE 
-                WHEN jsonb_array_length(sg -> 'properties' -> 'destinationPortRanges') > 0 
-                THEN (sg -> 'properties' -> 'destinationPortRanges') 
-                ELSE jsonb_build_array(sg -> 'properties' -> 'destinationPortRange') 
-            END) AS dport
-            WHERE sg -> 'properties' ->> 'access' = 'Allow'
-            AND dport IN ('20', '21', '23', '25', '69', '80', '110', '119', '143', '161', '162', '389', '513', '514')
-        )
-        SELECT 
-            sg_name || ',' || dport || ',' || service_name as nsg_port_service 
-        FROM clear_text_protocols
-        ORDER BY sg_name, dport""", 
-        "clear_text_protocols.csv"),
-    ("Sensitive Management Ports", """
-        WITH sensitive_management_ports AS (
-            SELECT DISTINCT 
-                name AS sg_name,
-                dport,
-                CASE dport
-                    WHEN '22' THEN 'SSH'
-                    WHEN '23' THEN 'Telnet'
-                    WHEN '80' THEN 'HTTP'
-                    WHEN '443' THEN 'HTTPS'
-                    WHEN '3389' THEN 'RDP'
-                    WHEN '5900' THEN 'VNC'
-                    WHEN '21' THEN 'FTP'
-                    WHEN '69' THEN 'TFTP'
-                    WHEN '389' THEN 'LDAP'
-                    WHEN '514' THEN 'syslog'
-                    WHEN '137' THEN 'NetBIOS'
-                    WHEN '138' THEN 'NetBIOS'
-                    WHEN '139' THEN 'NetBIOS'
-                    WHEN '445' THEN 'SMB'
-                    WHEN '88' THEN 'Kerberos'
-                    WHEN '3306' THEN 'MySQL'
-                    WHEN '1433' THEN 'MSSQL'
-                    WHEN '5432' THEN 'PostgreSQL'
-                    WHEN '1521' THEN 'Oracle'
-                    WHEN '6379' THEN 'Redis'
-                    WHEN '25' THEN 'SMTP'
-                    WHEN '465' THEN 'SMTPS'
-                    WHEN '110' THEN 'POP3'
-                END AS service_name
-            FROM azure_network_security_group nsg,
-            jsonb_array_elements(security_rules || default_security_rules) sg,
-            jsonb_array_elements_text(CASE 
-                WHEN jsonb_array_length(sg -> 'properties' -> 'destinationPortRanges') > 0 
-                THEN (sg -> 'properties' -> 'destinationPortRanges') 
-                ELSE jsonb_build_array(sg -> 'properties' -> 'destinationPortRange') 
-            END) AS dport,
-            jsonb_array_elements_text(CASE 
-                WHEN jsonb_array_length(sg -> 'properties' -> 'sourceAddressPrefixes') > 0 
-                THEN (sg -> 'properties' -> 'sourceAddressPrefixes') 
-                ELSE jsonb_build_array(sg -> 'properties' -> 'sourceAddressPrefix') 
-            END) AS sip
-            WHERE sg -> 'properties' ->> 'access' = 'Allow'
-            AND sip IN ('*', '0.0.0.0', '0.0.0.0/0', 'Internet', 'any', '<nw>/0', '/0')
-            AND dport IN ('22', '23', '80', '443', '3389', '5900', '21', '69', '389', '514', 
-                         '137', '138', '139', '445', '88', '3306', '1433', '5432', '1521', 
-                         '6379', '25', '465', '110')
-        )
-        SELECT 
-            sg_name || ',' || dport || ',' || service_name as nsg_port_service
-        FROM sensitive_management_ports
-        ORDER BY sg_name, dport""",
-        "sensitive_management_ports.csv")
-]
+    """Run Steampipe scans for network security groups."""
+    scan_resource_group(resource_folder, 'network_security_groups')
 
 def scan_sql_databases(resource_folder):
-    """Run Steampipe scans for SQL Databases."""
-    if hasattr(scan_sql_databases, 'scans'):
-        scan_resource_group(resource_folder, scan_sql_databases.scans, "SQLDatabases")
-
-scan_sql_databases.scans = [
-    ("Disabled Server Audit Policies", "SELECT s.name AS resource FROM azure_sql_server s, jsonb_array_elements(s.server_audit_policy) AS audit WHERE audit -> 'properties' ->> 'state' = 'Disabled';", "sql_server_audit_disabled.csv"),
-    ("Audit Retention Less Than 90 Days", "SELECT s.name AS resource FROM azure_sql_server s, jsonb_array_elements(s.server_audit_policy) AS audit WHERE (audit -> 'properties' ->> 'retentionDays')::integer < 90;", "sql_server_audit_retention_less_than_90.csv"),
-    ("Firewall Rules Allowing 0.0.0.0/0", "SELECT s.name AS resource FROM azure_sql_server s WHERE firewall_rules @> '[{\"properties\":{\"endIpAddress\":\"0.0.0.0\",\"startIpAddress\":\"0.0.0.0\"}}]' OR firewall_rules @> '[{\"properties\":{\"endIpAddress\":\"255.255.255.255\",\"startIpAddress\":\"0.0.0.0\"}}]';", "sql_server_firewall_ingress_0_0_0_0.csv"),
-    ("Public Network Access Enabled", "SELECT s.name AS resource FROM azure_sql_server s WHERE public_network_access = 'Enabled';", "sql_server_public_network_access_enabled.csv"),
-    ("Azure AD Authentication Not Enabled", "WITH sever_with_ad_admin AS (SELECT DISTINCT a.id FROM azure_sql_server AS a, jsonb_array_elements(server_azure_ad_administrator) AS ad_admin WHERE ad_admin ->> 'type' = 'Microsoft.Sql/servers/administrators') SELECT a.name AS resource FROM azure_sql_server AS a LEFT JOIN sever_with_ad_admin AS s ON a.id = s.id WHERE s.id IS NULL;", "sql_server_azure_ad_auth_not_enabled.csv"),
-    ("TDE Protector Not Using Customer-Managed Key", "SELECT s.name AS resource FROM azure_sql_server s, jsonb_array_elements(encryption_protector) encryption, azure_subscription sub WHERE sub.subscription_id = s.subscription_id AND encryption ->> 'kind' = 'servicemanaged';", "tde_protector_not_cmk.csv")
-]
+    """Run Steampipe scans for SQL databases."""
+    scan_resource_group(resource_folder, 'sql_databases')
 
 def scan_key_vaults(resource_folder):
-    """Run Steampipe scans for Key Vault misconfigurations."""
-    if hasattr(scan_key_vaults, 'scans'):
-        scan_resource_group(resource_folder, scan_key_vaults.scans, "KeyVaults")
-
-scan_key_vaults.scans = [
-    ("Network ACLs Configuration", "SELECT a.name AS resource FROM azure_key_vault a, azure_subscription sub WHERE (network_acls IS NULL OR network_acls ->> 'defaultAction' != 'Deny') AND sub.subscription_id = a.subscription_id", "public_network_enabled_key_vaults.csv"),
-    ("Soft Delete Disabled", "SELECT name FROM azure_key_vault WHERE soft_delete_enabled IS NOT TRUE", "soft_delete_disabled.csv"),
-    ("Purge Protection Status", "SELECT name FROM azure_key_vault WHERE purge_protection_enabled IS NOT TRUE", "purge_protection_disabled.csv"),
-    ("Diagnostic Settings", "SELECT name FROM azure_key_vault WHERE diagnostic_settings IS NULL", "missing_diagnostics.csv")
-]
+    """Run Steampipe scans for key vaults."""
+    scan_resource_group(resource_folder, 'key_vaults')
 
 def scan_postgresql_databases(resource_folder):
-    """Run Steampipe scans for PostgreSQL Databases."""
-    if hasattr(scan_postgresql_databases, 'scans'):
-        scan_resource_group(resource_folder, scan_postgresql_databases.scans, "PostgreSQLDatabases")
-
-scan_postgresql_databases.scans = [
-    ("Log Checkpoints Configuration", "WITH log_checkpoints_on AS (SELECT id FROM azure_postgresql_flexible_server, jsonb_array_elements(flexible_server_configurations) AS config WHERE config ->> 'Name' = 'log_checkpoints' AND config ->> 'Value' = 'on') SELECT id FROM log_checkpoints_on;", "log_checkpoints_configuration.csv"),
-    ("Connection Throttling Configuration", "WITH connection_throttling_off AS (SELECT id FROM azure_postgresql_flexible_server, jsonb_array_elements(flexible_server_configurations) AS config WHERE config ->> 'Name' = 'connection_throttling' AND config ->> 'Value' = 'off') SELECT id FROM connection_throttling_off;", "connection_throttling_configuration.csv"),
-    ("Log Files Retention Days", "SELECT s.id AS resource FROM azure_postgresql_flexible_server s, jsonb_array_elements(flexible_server_configurations) AS config, azure_subscription sub WHERE config ->> 'Name' = 'logfiles.retention_days' AND (config -> 'ConfigurationProperties' ->> 'value')::integer <= 3 AND sub.subscription_id = s.subscription_id;", "logfiles_retention_alarm.csv")
-]
+    """Run Steampipe scans for PostgreSQL databases."""
+    scan_resource_group(resource_folder, 'postgresql_databases')
 
 def scan_mysql_databases(resource_folder):
-    """Run Steampipe scans for MySQL Databases."""
-    if hasattr(scan_mysql_databases, 'scans'):
-        scan_resource_group(resource_folder, scan_mysql_databases.scans, "MySQLDatabases")
+    """Run Steampipe scans for MySQL databases."""
+    scan_resource_group(resource_folder, 'mysql_databases')
 
-scan_mysql_databases.scans = [
-    ("Non-compliant TLS Versions", "WITH tls_version AS (SELECT id FROM azure_mysql_flexible_server, jsonb_array_elements(flexible_server_configurations) AS config WHERE config ->> 'Name' = 'tls_version' AND config ->> 'Value' NOT IN ('TLS1_2', 'TLS1_3')) SELECT id FROM tls_version;", "tls_noncompliant_servers.csv")
-]
+def scan_app_services(resource_folder):
+    """Run Steampipe scans for app services."""
+    scan_resource_group(resource_folder, 'app_services')
 
 def scan_cosmos_db(resource_folder):
     """Run Steampipe scans for Cosmos DB."""
-    if hasattr(scan_cosmos_db, 'scans'):
-        scan_resource_group(resource_folder, scan_cosmos_db.scans, "CosmosDB")
-
-scan_cosmos_db.scans = [
-    ("No Firewall", "SELECT name FROM azure_cosmosdb_account WHERE is_virtual_network_filter_enabled = false", "cosmosdb_no_firewall.csv")
-]
+    scan_resource_group(resource_folder, 'cosmos_databases')
 
 def get_finding_details(finding_type: str) -> Dict:
     """Get details for a specific finding type from configuration."""
