@@ -1122,40 +1122,41 @@ def initial_menu(update_needed=False, latest_version=None):
 def check_for_updates():
     """Check if there is a newer version of the script available on GitHub."""
     try:
-        # Download the latest version file for comparison
-        if download_version_file():
-            # Re-read the version after download
-            current_ver = tuple(map(int, __version__.split('.')))
+        # Download and check the latest version file
+        version_url = "https://raw.githubusercontent.com/D4rkm4g1c/AzureSecuritySuite/main/version.txt"
+        response = requests.get(version_url)
+        response.raise_for_status()
+        
+        # Parse the latest version from GitHub
+        latest_version = None
+        for line in response.text.splitlines():
+            if line.startswith('__version__'):
+                latest_version = line.split('=')[1].strip().strip('"\'')
+                break
+                
+        if not latest_version:
+            raise ValueError("Could not find version in remote version.txt")
             
-            # Read the downloaded version
-            version_file = os.path.join(os.path.dirname(__file__), 'version.txt')
-            with open(version_file, 'r') as f:
-                for line in f:
-                    if line.startswith('__version__'):
-                        latest_version = line.split('=')[1].strip().strip('"\'')
-                        break
+        print(f"{Fore.CYAN}Current version: {__version__}{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}Latest version: {latest_version}{Style.RESET_ALL}")
             
-            # Convert versions to tuples for proper comparison
-            current_ver = tuple(map(int, __version__.split('.')))
-            latest_ver = tuple(map(int, latest_version.split('.')))
-            
-            if latest_ver > current_ver:
-                print(f"{Fore.YELLOW}A new version ({latest_version}) is available!{Style.RESET_ALL}")
-                print(f"Run the script with --update to download the latest version.")
-                return (True, latest_version)
-            else:
-                print(f"{Fore.GREEN}You are using the latest version ({__version__}).{Style.RESET_ALL}")
-                return (False, latest_version)
-            
+        # Convert versions to tuples for proper comparison
+        current_ver = tuple(map(int, __version__.split('.')))
+        latest_ver = tuple(map(int, latest_version.split('.')))
+        
+        if latest_ver > current_ver:
+            print(f"{Fore.YELLOW}A new version ({latest_version}) is available!{Style.RESET_ALL}")
+            print(f"Run the script with --update to download the latest version.")
+            return (True, latest_version)
+        elif latest_ver < current_ver:
+            print(f"{Fore.YELLOW}Warning: Local version ({__version__}) is ahead of repository version ({latest_version}){Style.RESET_ALL}")
+            return (False, latest_version)
         else:
-            print(f"{Fore.RED}Failed to download version.txt. Please check your internet connection.{Style.RESET_ALL}")
-            return (False, None)
+            print(f"{Fore.GREEN}You are using the latest version ({__version__}).{Style.RESET_ALL}")
+            return (False, latest_version)
             
-    except requests.RequestException as e:
+    except Exception as e:
         print(f"{Fore.RED}Failed to check for updates: {str(e)}{Style.RESET_ALL}")
-        return (False, None)
-    except ValueError as e:
-        print(f"{Fore.RED}Error parsing version: {str(e)}{Style.RESET_ALL}")
         return (False, None)
 
 def update_script():
@@ -1165,8 +1166,7 @@ def update_script():
         files_to_update = {
             'version.txt': 'version.txt',
             'AzureSecuritySuite.py': os.path.basename(__file__),
-            'report_generator.py': 'report_generator.py',
-            'finding_details.json': 'finding_details.json'
+            'report_generator.py': 'report_generator.py'
         }
         
         script_dir = os.path.dirname(os.path.abspath(__file__))
