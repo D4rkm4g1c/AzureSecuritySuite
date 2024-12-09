@@ -11,6 +11,8 @@ AzureSecuritySuite is a comprehensive security assessment tool designed to ident
 - Parallel processing for improved performance
 - Real-time progress tracking
 - Detailed logging system
+- Automatic version management and updates
+- YAML-based scan definitions for easy maintenance
 
 ### Interactive HTML Reports
 - Clean, modern interface
@@ -21,6 +23,70 @@ AzureSecuritySuite is a comprehensive security assessment tool designed to ident
   - View by Resource
 - Executive summary with key metrics
 - Responsive design for all devices
+
+## Project Structure
+```
+AzureSecuritySuite/
+├── AzureSecuritySuite.py     # Main script
+├── report_generator.py       # Report generation module
+├── version.txt              # Version tracking
+├── requirements.txt         # Dependencies
+└── scans/                   # YAML scan definitions
+    ├── virtual_machines.yaml
+    ├── storage_accounts.yaml
+    ├── app_services.yaml
+    └── ...
+```
+
+## Development Setup
+
+1. **Clone Repository**:
+   ```bash
+   git clone https://github.com/D4rkm4g1c/AzureSecuritySuite.git
+   cd AzureSecuritySuite
+   ```
+
+2. **Install Dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+## Scan Definitions
+Security checks are defined in YAML files for easy maintenance:
+
+```yaml
+scans:
+  - name: "Unencrypted Disks"
+    description: "Identifies VMs with unencrypted disks"
+    query: |
+      SELECT name, resource_group
+      FROM azure_compute_disk
+      WHERE encryption_type IS NULL
+```
+
+## Common Issues
+
+1. **Authentication Failures**
+   - Ensure Azure CLI is logged in
+   - Verify permissions
+   - Check MFA requirements
+
+2. **Report Generation**
+   - Ensure write permissions 
+   - Check disk space
+   - Verify browser compatibility
+
+## Roadmap
+
+### Upcoming Features
+- [ ] Compliance Reporting (CIS, NIST, PCI)
+- [ ] Multi-tenant Support
+- [ ] Resource Tagging Analysis
+- [ ] Automated Remediation Options
+
+## Support
+
+For issues and feature requests, please use GitHub Issues.
 
 ## Security Checks
 
@@ -82,6 +148,10 @@ The tool performs various security checks across different Azure resources:
    ```bash
    python AzureSecuritySuite.py
    ```
+   - Optional: Use `--update` flag to get the latest version
+   ```bash
+   python AzureSecuritySuite.py --update
+   ```
 
 2. **Authentication**:
    - Select "Login to Azure"
@@ -101,6 +171,14 @@ The tool performs various security checks across different Azure resources:
    - Switch between light/dark modes for comfortable viewing
    - Review executive summary for quick insights
 
+## Version Management
+
+- Automatic version checking on startup
+- Easy updates via `--update` flag
+- Version history tracking in version.txt
+- Automatic backup creation during updates
+- Changelog tracking for all versions
+
 ## Prerequisites
 
 - Python 3.6 or higher
@@ -111,6 +189,8 @@ The tool performs various security checks across different Azure resources:
   - pathlib
   - datetime
   - logging
+  - requests
+  - pyyaml
 
 ## Installation
 
