@@ -42,11 +42,6 @@ scans:
       SELECT sg_name FROM unrestricted_inbound 
       UNION SELECT sg_name FROM unrestricted_outbound
     output_file: "unrestricted_rules.csv"
-    severity: "CRITICAL"
-    description: "NSGs with unrestricted inbound or outbound access"
-    remediation: "Restrict network access to specific IP ranges and ports"
-    references:
-      - "https://docs.microsoft.com/azure/security/fundamentals/network-best-practices"
 
   - name: "Clear Text Protocols"
     query: >-
@@ -84,11 +79,6 @@ scans:
       FROM clear_text_protocols
       ORDER BY sg_name, dport
     output_file: "clear_text_protocols.csv"
-    severity: "HIGH"
-    description: "NSGs allowing clear text protocols"
-    remediation: "Replace clear text protocols with encrypted alternatives"
-    references:
-      - "https://docs.microsoft.com/azure/security/fundamentals/network-best-practices"
 
   - name: "Sensitive Management Ports"
     query: >-
@@ -143,8 +133,3 @@ scans:
       FROM sensitive_management_ports
       ORDER BY sg_name, dport
     output_file: "sensitive_management_ports.csv"
-    severity: "CRITICAL"
-    description: "NSGs allowing access to sensitive management ports from any source"
-    remediation: "Restrict management port access to specific trusted IP ranges"
-    references:
-      - "https://docs.microsoft.com/azure/security/fundamentals/network-best-practices"

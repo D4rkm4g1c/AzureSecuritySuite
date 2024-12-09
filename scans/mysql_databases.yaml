@@ -11,8 +11,3 @@ scans:
       SELECT id 
       FROM tls_version
     output_file: "tls_noncompliant_servers.csv"
-    severity: "HIGH"
-    description: "MySQL servers using outdated TLS versions"
-    remediation: "Upgrade to TLS 1.2 or 1.3"
-    references:
-      - "https://docs.microsoft.com/azure/mysql/concepts-ssl-connection-security"

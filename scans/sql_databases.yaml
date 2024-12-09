@@ -6,11 +6,6 @@ scans:
       jsonb_array_elements(s.server_audit_policy) AS audit 
       WHERE audit -> 'properties' ->> 'state' = 'Disabled'
     output_file: "sql_server_audit_disabled.csv"
-    severity: "HIGH"
-    description: "SQL Servers with disabled audit policies"
-    remediation: "Enable server audit policies"
-    references:
-      - "https://docs.microsoft.com/azure/azure-sql/database/auditing-overview"
 
   - name: "Audit Retention Less Than 90 Days"
     query: >-
@@ -19,11 +14,6 @@ scans:
       jsonb_array_elements(s.server_audit_policy) AS audit 
       WHERE (audit -> 'properties' ->> 'retentionDays')::integer < 90
     output_file: "sql_server_audit_retention_less_than_90.csv"
-    severity: "MEDIUM"
-    description: "SQL Servers with audit retention less than 90 days"
-    remediation: "Increase audit retention period to at least 90 days"
-    references:
-      - "https://docs.microsoft.com/azure/azure-sql/database/auditing-overview#audit-log-retention"
 
   - name: "Firewall Rules Allowing 0.0.0.0/0"
     query: >-
@@ -32,11 +22,6 @@ scans:
       WHERE firewall_rules @> '[{"properties":{"endIpAddress":"0.0.0.0","startIpAddress":"0.0.0.0"}}]' 
       OR firewall_rules @> '[{"properties":{"endIpAddress":"255.255.255.255","startIpAddress":"0.0.0.0"}}]'
     output_file: "sql_server_firewall_ingress_0_0_0_0.csv"
-    severity: "CRITICAL"
-    description: "SQL Servers allowing access from any IP address"
-    remediation: "Restrict firewall rules to specific IP ranges"
-    references:
-      - "https://docs.microsoft.com/azure/azure-sql/database/firewall-configure"
 
   - name: "Public Network Access Enabled"
     query: >-
@@ -44,11 +29,6 @@ scans:
       FROM azure_sql_server s 
       WHERE public_network_access = 'Enabled'
     output_file: "sql_server_public_network_access_enabled.csv"
-    severity: "HIGH"
-    description: "SQL Servers with public network access enabled"
-    remediation: "Disable public network access"
-    references:
-      - "https://docs.microsoft.com/azure/azure-sql/database/private-endpoint-overview"
 
   - name: "Azure AD Authentication Not Enabled"
     query: >-
@@ -63,11 +43,6 @@ scans:
       LEFT JOIN sever_with_ad_admin AS s ON a.id = s.id 
       WHERE s.id IS NULL
     output_file: "sql_server_azure_ad_auth_not_enabled.csv"
-    severity: "HIGH"
-    description: "SQL Servers without Azure AD authentication"
-    remediation: "Enable Azure AD authentication"
-    references:
-      - "https://docs.microsoft.com/azure/azure-sql/database/authentication-aad-overview"
 
   - name: "TDE Protector Not Using Customer-Managed Key"
     query: >-
@@ -78,8 +53,3 @@ scans:
       WHERE sub.subscription_id = s.subscription_id 
       AND encryption ->> 'kind' = 'servicemanaged'
     output_file: "tde_protector_not_cmk.csv"
-    severity: "MEDIUM"
-    description: "SQL Servers not using customer-managed keys for TDE"
-    remediation: "Configure customer-managed keys for TDE"
-    references:
-      - "https://docs.microsoft.com/azure/azure-sql/database/transparent-data-encryption-byok-overview"

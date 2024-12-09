@@ -7,11 +7,6 @@ scans:
       WHERE (network_acls IS NULL OR network_acls ->> 'defaultAction' != 'Deny') 
       AND sub.subscription_id = a.subscription_id
     output_file: "public_network_enabled_key_vaults.csv"
-    severity: "HIGH"
-    description: "Key Vaults without network restrictions"
-    remediation: "Configure network ACLs to deny by default"
-    references:
-      - "https://docs.microsoft.com/azure/key-vault/general/network-security"
 
   - name: "Soft Delete Disabled"
     query: >-
@@ -19,11 +14,6 @@ scans:
       FROM azure_key_vault 
       WHERE soft_delete_enabled IS NOT TRUE
     output_file: "soft_delete_disabled.csv"
-    severity: "HIGH"
-    description: "Key Vaults without soft-delete enabled"
-    remediation: "Enable soft-delete"
-    references:
-      - "https://docs.microsoft.com/azure/key-vault/general/soft-delete-overview"
 
   - name: "Purge Protection Status"
     query: >-
@@ -31,11 +21,6 @@ scans:
       FROM azure_key_vault 
       WHERE purge_protection_enabled IS NOT TRUE
     output_file: "purge_protection_disabled.csv"
-    severity: "MEDIUM"
-    description: "Key Vaults without purge protection"
-    remediation: "Enable purge protection"
-    references:
-      - "https://docs.microsoft.com/azure/key-vault/general/soft-delete-overview#purge-protection"
 
   - name: "Diagnostic Settings"
     query: >-
@@ -43,8 +28,3 @@ scans:
       FROM azure_key_vault 
       WHERE diagnostic_settings IS NULL
     output_file: "missing_diagnostics.csv"
-    severity: "MEDIUM"
-    description: "Key Vaults without diagnostic settings"
-    remediation: "Enable diagnostic settings"
-    references:
-      - "https://docs.microsoft.com/azure/key-vault/general/logging"

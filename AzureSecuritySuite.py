@@ -573,7 +573,7 @@ def run_all_scans(resource_folders):
             "KeyVaults": "key_vaults",
             "PostgreSQLDatabases": "postgresql_databases",
             "MySQLDatabases": "mysql_databases",
-            "CosmosDB": "cosmos_db"
+            "CosmosDB": "cosmos_databases"
         }
         
         # Debug: Print current working directory
@@ -666,19 +666,22 @@ def scan_resource_group(resource_folder: str, scan_type: str) -> None:
         print(f"\n{Fore.CYAN}Running {len(scans)} scans for {scan_type}...{Style.RESET_ALL}")
         
         for scan in scans:
+            # Only check for required fields: name, query, output_file
+            required_fields = {'name', 'query', 'output_file'}
+            if not all(field in scan for field in required_fields):
+                print(f"{Fore.RED}Invalid scan definition - missing required fields{Style.RESET_ALL}")
+                continue
+                
             scan_name = scan['name']
             query = scan['query']
             output_file = os.path.join(resource_folder, scan['output_file'])
-            severity = scan.get('severity', 'UNKNOWN')
             
-            print(f"\n{Fore.YELLOW}Running scan: {scan_name} (Severity: {severity}){Style.RESET_ALL}")
+            print(f"\n{Fore.YELLOW}Running scan: {scan_name}{Style.RESET_ALL}")
             
             if run_steampipe_query(query, output_file):
                 print(f"{Fore.GREEN}✓ Scan completed: {scan_name}{Style.RESET_ALL}")
                 if os.path.exists(output_file) and os.path.getsize(output_file) > 0:
                     print(f"{Fore.RED}! Found issues - check {output_file}{Style.RESET_ALL}")
-                    if 'remediation' in scan:
-                        print(f"{Fore.YELLOW}Remediation: {scan['remediation']}{Style.RESET_ALL}")
             else:
                 print(f"{Fore.RED}✗ Scan failed: {scan_name}{Style.RESET_ALL}")
 

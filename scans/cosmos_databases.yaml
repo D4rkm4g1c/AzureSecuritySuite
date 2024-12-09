@@ -1,0 +1,7 @@
+scans:
+  - name: "No Firewall"
+    query: >-
+      SELECT name 
+      FROM azure_cosmosdb_account 
+      WHERE is_virtual_network_filter_enabled = false
+    output_file: "cosmosdb_no_firewall.csv"

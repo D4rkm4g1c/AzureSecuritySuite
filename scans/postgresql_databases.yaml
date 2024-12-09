@@ -11,11 +11,6 @@ scans:
       SELECT id 
       FROM log_checkpoints_on
     output_file: "log_checkpoints_configuration.csv"
-    severity: "MEDIUM"
-    description: "PostgreSQL servers without checkpoint logging enabled"
-    remediation: "Enable checkpoint logging"
-    references:
-      - "https://docs.microsoft.com/azure/postgresql/concepts-server-logs"
 
   - name: "Connection Throttling Configuration"
     query: >-
@@ -29,11 +24,6 @@ scans:
       SELECT id 
       FROM connection_throttling_off
     output_file: "connection_throttling_configuration.csv"
-    severity: "HIGH"
-    description: "PostgreSQL servers without connection throttling"
-    remediation: "Enable connection throttling"
-    references:
-      - "https://docs.microsoft.com/azure/postgresql/concepts-connectivity"
 
   - name: "Log Files Retention Days"
     query: >-
@@ -45,8 +35,3 @@ scans:
       AND (config -> 'ConfigurationProperties' ->> 'value')::integer <= 3 
       AND sub.subscription_id = s.subscription_id
     output_file: "logfiles_retention_alarm.csv"
-    severity: "MEDIUM"
-    description: "PostgreSQL servers with short log retention periods"
-    remediation: "Increase log retention period"
-    references:
-      - "https://docs.microsoft.com/azure/postgresql/concepts-server-logs#log-retention"
