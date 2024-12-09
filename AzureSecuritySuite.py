@@ -24,7 +24,83 @@ init(autoreset=True)
 log_dir = 'azuresecuritysuitelogs'
 os.makedirs(log_dir, exist_ok=True)
 
-__version__ = "1.0.0"
+def download_version_file():
+    """Download version.txt from GitHub repository."""
+    try:
+        # GitHub raw content URL for version.txt
+        version_url = "https://raw.githubusercontent.com/D4rkm4g1c/AzureSecuritySuite/main/version.txt"
+        
+        print(f"{Fore.CYAN}Downloading version.txt from repository...{Style.RESET_ALL}")
+        response = requests.get(version_url)
+        response.raise_for_status()  # Raise exception for bad status codes
+        
+        # Save to the same directory as the script
+        version_file = os.path.join(os.path.dirname(__file__), 'version.txt')
+        with open(version_file, 'w') as f:
+            f.write(response.text)
+            
+        print(f"{Fore.GREEN}✓ Successfully downloaded version.txt{Style.RESET_ALL}")
+        return True
+        
+    except requests.RequestException as e:
+        logging.error(f"Failed to download version.txt: {str(e)}")
+        return False
+
+def get_version():
+    """Load version and date from version.txt or return defaults."""
+    try:
+        # Try multiple possible locations for version.txt
+        possible_paths = [
+            os.path.join(os.path.dirname(__file__), 'version.txt'),  # Same directory as script
+            'version.txt',  # Current working directory
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), 'version.txt'),  # Absolute path
+        ]
+        
+        for version_file in possible_paths:
+            if os.path.exists(version_file):
+                with open(version_file, 'r') as f:
+                    version = None
+                    date = None
+                    for line in f:
+                        if line.startswith('__version__'):
+                            version = line.split('=')[1].strip().strip('"\'')
+                        elif line.startswith('# v') and not date:  # Get date from first version entry
+                            try:
+                                date = line.split('(')[1].split(')')[0].strip()
+                            except IndexError:
+                                continue
+                        if version and date:
+                            logging.info(f"Version {version} ({date}) loaded from {version_file}")
+                            return version, date
+        
+        # If version.txt doesn't exist or is invalid, create it with default values
+        default_version = "1.0.1"
+        default_date = datetime.now().strftime("%d-%m-%Y")
+        version_file = possible_paths[0]  # Use the first path (same directory as script)
+        try:
+            with open(version_file, 'w') as f:
+                f.write(f'__version__ = "{default_version}"\n\n')
+                f.write("# Changelog\n")
+                f.write("# ---------\n")
+                f.write(f"# v{default_version} ({default_date})\n")
+                f.write("# - Added dark mode toggle with color scheme (#444444, #bcd03e, #ffffff)\n")
+                f.write("# - Removed severity indicators (pending implementation)\n")
+                f.write("# - Enhanced report styling with new green theme (#b0d351)\n")
+                f.write("# - Simplified header design\n")
+                f.write("# - Improved executive summary layout\n")
+                f.write("# - Added consistent styling across all report sections\n")
+            logging.info(f"Created new version.txt with version {default_version} ({default_date})")
+            return default_version, default_date
+        except Exception as write_error:
+            logging.error(f"Failed to create version.txt: {write_error}")
+            return default_version, default_date
+            
+    except Exception as e:
+        logging.warning(f"Could not load version from file: {e}")
+        return "1.0.1", datetime.now().strftime("%d-%m-%Y")
+
+# Load version and date at module level
+__version__, __version_date__ = get_version()
 
 def get_unique_log_filename(subscription_name):
     """Generate a unique log filename, adding a counter if necessary."""
@@ -124,7 +200,7 @@ def print_banner(update_available=False, latest_version=None):
 ║{' ' * (terminal_width-2)}║
 ║{Style.BRIGHT + Fore.GREEN + 'Created by D4rkm4g1c (Consultant)'.center(terminal_width-2)}║
 ║{' ' * (terminal_width-2)}║
-║{Style.BRIGHT + Fore.GREEN + f' Version {__version__} - 2024-12-03'.center(terminal_width-2)}║"""
+║{Style.BRIGHT + Fore.GREEN + f' Version {__version__} ({__version_date__})'.center(terminal_width-2)}║"""
 
     # Add update notification if available
     if update_available and latest_version:
@@ -250,10 +326,16 @@ def handle_error(error, context=None):
     for suggestion in error_details[1]:
         print(f"{Fore.YELLOW}• {suggestion}{Style.RESET_ALL}")
 
+    # Wait for user input before continuing
+    input(f"\n{Fore.YELLOW}Press Enter to continue...{Style.RESET_ALL}")
+
 def display_menu(title, options, prompt="Select an option: ", show_back=False):
     """Display a menu with a title and options."""
     logging.info(f"Displaying menu: {title}")
-    print(f"\n{Fore.CYAN}{Style.BRIGHT}{title}:{Style.RESET_ALL}")
+    
+    # Add version and date to title
+    title_with_version = f"{title} (v{__version__} - {__version_date__})"
+    print(f"\n{Fore.CYAN}{Style.BRIGHT}{title_with_version}:{Style.RESET_ALL}")
     
     # Calculate the valid range for menu options
     min_value = 0 if show_back else 1
@@ -907,7 +989,7 @@ def initial_menu(update_needed=False, latest_version=None):
             clear_screen()
             print_banner(update_needed, latest_version)
             
-            watermark = f"{Fore.LIGHTBLACK_EX}Azure Security Scanner - Confidential{Style.RESET_ALL}"
+            watermark = f"{Fore.LIGHTBLACK_EX}Azure Security Scanner v{__version__} ({__version_date__}) - Confidential{Style.RESET_ALL}"
             print(f"{watermark.center(shutil.get_terminal_size().columns)}\n")
 
             # Show logging status
@@ -1040,32 +1122,34 @@ def initial_menu(update_needed=False, latest_version=None):
 def check_for_updates():
     """Check if there is a newer version of the script available on GitHub."""
     try:
-        # URL to the raw version file on GitHub
-        version_url = "https://raw.githubusercontent.com/D4rkm4g1c/AzureSecuritySuite/main/version.txt"
-        
-        # Fetch the latest version from GitHub
-        response = requests.get(version_url)
-        response.raise_for_status()
-        
-        # Extract version number from response
-        latest_version_line = response.text.strip()
-        if latest_version_line.startswith('__version__'):
-            # Extract the version number from the line
-            latest_version = latest_version_line.split('=')[1].strip().strip('"\'')
+        # Download the latest version file for comparison
+        if download_version_file():
+            # Re-read the version after download
+            current_ver = tuple(map(int, __version__.split('.')))
+            
+            # Read the downloaded version
+            version_file = os.path.join(os.path.dirname(__file__), 'version.txt')
+            with open(version_file, 'r') as f:
+                for line in f:
+                    if line.startswith('__version__'):
+                        latest_version = line.split('=')[1].strip().strip('"\'')
+                        break
+            
+            # Convert versions to tuples for proper comparison
+            current_ver = tuple(map(int, __version__.split('.')))
+            latest_ver = tuple(map(int, latest_version.split('.')))
+            
+            if latest_ver > current_ver:
+                print(f"{Fore.YELLOW}A new version ({latest_version}) is available!{Style.RESET_ALL}")
+                print(f"Run the script with --update to download the latest version.")
+                return (True, latest_version)
+            else:
+                print(f"{Fore.GREEN}You are using the latest version ({__version__}).{Style.RESET_ALL}")
+                return (False, latest_version)
+            
         else:
-            raise ValueError("Unexpected version format in version.txt")
-        
-        # Convert versions to tuples for proper comparison
-        current_ver = tuple(map(int, __version__.split('.')))
-        latest_ver = tuple(map(int, latest_version.split('.')))
-        
-        if latest_ver > current_ver:
-            print(f"{Fore.YELLOW}A new version ({latest_version}) is available!{Style.RESET_ALL}")
-            print(f"Run the script with --update to download the latest version.")
-            return (True, latest_version)
-        else:
-            print(f"{Fore.GREEN}You are using the latest version ({__version__}).{Style.RESET_ALL}")
-            return (False, latest_version)
+            print(f"{Fore.RED}Failed to download version.txt. Please check your internet connection.{Style.RESET_ALL}")
+            return (False, None)
             
     except requests.RequestException as e:
         print(f"{Fore.RED}Failed to check for updates: {str(e)}{Style.RESET_ALL}")
@@ -1075,62 +1159,62 @@ def check_for_updates():
         return (False, None)
 
 def update_script():
-    """Download the latest version of the script from GitHub."""
+    """Download the latest version of the script and associated files from GitHub."""
     try:
-        # First get the latest version number
-        version_url = "https://raw.githubusercontent.com/D4rkm4g1c/AzureSecuritySuite/main/version.txt"
-        version_response = requests.get(version_url)
-        version_response.raise_for_status()
-        latest_version = version_response.text.strip().split('=')[1].strip().strip('"\'')
+        base_url = "https://raw.githubusercontent.com/D4rkm4g1c/AzureSecuritySuite/main"
+        files_to_update = {
+            'version.txt': 'version.txt',
+            'AzureSecuritySuite.py': os.path.basename(__file__),
+            'report_generator.py': 'report_generator.py',
+            'finding_details.json': 'finding_details.json'
+        }
         
-        # URL to the raw script file on GitHub
-        script_url = "https://raw.githubusercontent.com/D4rkm4g1c/AzureSecuritySuite/main/AzureSecuritySuite.py"
-        
-        # Get the directory of the current script
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        script_name = os.path.basename(__file__)
         
-        # Create paths for temporary and backup files
-        temp_file = os.path.join(script_dir, f"{script_name}.tmp")
-        backup_file = os.path.join(script_dir, f"{script_name}.backup")
+        print(f"{Fore.CYAN}Starting update process...{Style.RESET_ALL}")
         
-        print(f"{Fore.CYAN}Downloading latest version...{Style.RESET_ALL}")
+        # Create backups directory
+        backup_dir = os.path.join(script_dir, 'backups', datetime.now().strftime('%Y%m%d_%H%M%S'))
+        os.makedirs(backup_dir, exist_ok=True)
         
-        # Fetch the latest script from GitHub with proper encoding
-        response = requests.get(script_url)
-        response.raise_for_status()
-        content = response.content.decode('utf-8')
+        # Download and update each file
+        for filename, local_name in files_to_update.items():
+            try:
+                file_url = f"{base_url}/{filename}"
+                response = requests.get(file_url)
+                response.raise_for_status()
+                
+                local_path = os.path.join(script_dir, local_name)
+                temp_path = local_path + '.tmp'
+                backup_path = os.path.join(backup_dir, local_name)
+                
+                # Create backup if file exists
+                if os.path.exists(local_path):
+                    print(f"{Fore.CYAN}Backing up {local_name}...{Style.RESET_ALL}")
+                    shutil.copy2(local_path, backup_path)
+                
+                # Write new content
+                print(f"{Fore.CYAN}Updating {local_name}...{Style.RESET_ALL}")
+                with open(temp_path, 'wb') as f:
+                    f.write(response.content)
+                
+                # Replace old file with new version
+                os.replace(temp_path, local_path)
+                
+            except Exception as e:
+                print(f"{Fore.RED}Failed to update {filename}: {str(e)}{Style.RESET_ALL}")
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+                continue
         
-        # Update the version number in the content
-        content = content.replace('__version__ = "0.0.1"', f'__version__ = "{latest_version}"')
-        
-        # Backup existing file first
-        print(f"{Fore.CYAN}Creating backup...{Style.RESET_ALL}")
-        shutil.copy2(__file__, backup_file)
-        
-        # Write new content to temporary file
-        print(f"{Fore.CYAN}Writing new version...{Style.RESET_ALL}")
-        with open(temp_file, 'w', encoding='utf-8') as f:
-            f.write(content)
-            
-        # Replace the old file with the new version
-        print(f"{Fore.CYAN}Installing update...{Style.RESET_ALL}")
-        os.replace(temp_file, __file__)
-        
-        print(f"{Fore.GREEN}✓ Script updated successfully to version {latest_version}!{Style.RESET_ALL}")
-        print(f"{Fore.GREEN}✓ Backup created at: {backup_file}{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}✓ Update completed successfully!{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}✓ Backups created in: {backup_dir}{Style.RESET_ALL}")
         print(f"{Fore.YELLOW}Please restart the script to use the new version.{Style.RESET_ALL}")
         sys.exit(0)
         
-    except requests.RequestException as e:
-        print(f"{Fore.RED}Failed to download update: {str(e)}{Style.RESET_ALL}")
-        if os.path.exists(temp_file):
-            os.remove(temp_file)
     except Exception as e:
         print(f"{Fore.RED}Error during update: {str(e)}{Style.RESET_ALL}")
-        if os.path.exists(temp_file):
-            os.remove(temp_file)
-        print(f"{Fore.YELLOW}Your backup file is available at: {backup_file}{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}Your backups are available in: {backup_dir}{Style.RESET_ALL}")
 
 def display_help():
     """Display help information for menu options."""

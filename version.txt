@@ -1,7 +1,14 @@
-__version__ = "1.0.1"
+__version__ = "1.0.2"
 
 # Changelog
 # ---------
+# v1.0.2 (09-12-2024)
+# - Added automatic version.txt download from GitHub
+# - Enhanced version display consistency across all menus
+# - Improved version and date tracking
+# - Added better error handling for version file operations
+# - Implemented version date display in banner and menus
+
 # v1.0.1 (06-12-2024)
 # - Added dark mode toggle with color scheme (#444444, #bcd03e, #ffffff)
 # - Removed severity indicators (pending implementation)
