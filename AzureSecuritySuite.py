@@ -497,36 +497,65 @@ def create_folder_structure(tenant_name, subscription_name, subscription_id):
     return resource_folders
 
 def write_vuln_overview(vuln_overview, resource_folder, resource_type):
-    """Write the vulnerability overview to a CSV file in the resource folder."""
-    output_file = os.path.join(resource_folder, f"{resource_type}_vulnerability_overview.csv")
+    """Write vulnerability findings to both vulnerability-focused and overview CSV files."""
+    # Define file paths
+    vuln_file = os.path.join(resource_folder, f"{resource_type}_vulnerabilities.csv")
+    overview_file = os.path.join(resource_folder, f"{resource_type}_vulnerability_overview.csv")
     
-    # Special handling for NSGs to combine findings for the same NSG
-    if resource_type == "NetworkSecurityGroups":
-        consolidated_overview = {}
-        for resource, vulns in vuln_overview.items():
-            # Extract base NSG name (remove port info if present)
-            base_name = resource.split(' (')[0]
-            
-            if base_name not in consolidated_overview:
-                consolidated_overview[base_name] = set()
-            
-            # Add all vulnerabilities for this NSG
-            consolidated_overview[base_name].update(vulns)
+    try:
+        # Create dictionaries to store organized data
+        vuln_to_resources = {}  # For vulnerability-focused file
+        resource_to_vulns = {}  # For overview file
         
-        # Write consolidated overview
-        with open(output_file, 'w') as f:
-            f.write("Resource Name,Vulnerabilities Found\n")
-            for resource, vulns in consolidated_overview.items():
-                # Join vulnerabilities with semicolon for better separation
-                f.write(f"{resource},{'; '.join(vulns)}\n")
-    else:
-        # Original handling for other resource types
-        with open(output_file, 'w') as f:
-            f.write("Resource Name,Vulnerabilities Found\n")
-            for resource, vulns in vuln_overview.items():
-                f.write(f"{resource},{'; '.join(vulns)}\n")
-                
-    print(f"{Fore.GREEN}✓ Vulnerability overview for {resource_type} saved to: {output_file}{Style.RESET_ALL}")
+        # Process each resource and its vulnerabilities
+        for resource, vulns in vuln_overview.items():
+            # Handle both single vulnerabilities and lists/sets
+            if isinstance(vulns, (list, set)):
+                vuln_list = list(vulns)
+            else:
+                vuln_list = [str(vulns)]
+            
+            # Clean and normalize resource name
+            resource_name = resource.strip().strip('"')
+            
+            # Store for overview file (resource -> vulnerabilities)
+            if resource_name not in resource_to_vulns:
+                resource_to_vulns[resource_name] = set()
+            resource_to_vulns[resource_name].update(vuln_list)
+            
+            # Store for vulnerability file (vulnerability -> resources)
+            for vuln in vuln_list:
+                if vuln not in vuln_to_resources:
+                    vuln_to_resources[vuln] = set()
+                vuln_to_resources[vuln].add(resource_name)
+        
+        # Write vulnerability-focused file
+        with open(vuln_file, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f, quoting=csv.QUOTE_ALL)
+            writer.writerow(["Vulnerability", "Affected Resources"])
+            
+            for vuln in sorted(vuln_to_resources.keys()):
+                resources_string = ', '.join(sorted(vuln_to_resources[vuln]))
+                writer.writerow([vuln, resources_string])
+        
+        # Write overview file
+        with open(overview_file, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f, quoting=csv.QUOTE_ALL)
+            writer.writerow(["Resource Name", "Vulnerabilities Found"])
+            
+            for resource in sorted(resource_to_vulns.keys()):
+                vulns_string = '; '.join(sorted(resource_to_vulns[resource]))
+                writer.writerow([resource, vulns_string])
+        
+        print(f"{Fore.GREEN}✓ Vulnerability files saved for {resource_type}:")
+        print(f"  - Overview: {overview_file}")
+        print(f"  - Vulnerabilities: {vuln_file}{Style.RESET_ALL}")
+        logging.info(f"Vulnerability files written for {resource_type}")
+        
+    except Exception as e:
+        error_msg = f"Error writing vulnerability files: {str(e)}"
+        print(f"{Fore.RED}✗ {error_msg}{Style.RESET_ALL}")
+        logging.error(error_msg)
 
 def run_scans(resource_folder, scans, scan_type):
     """Run a list of scans and save results to the resource folder."""
