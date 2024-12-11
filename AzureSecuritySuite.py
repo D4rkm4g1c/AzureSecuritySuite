@@ -18,6 +18,14 @@ from typing import Dict, List, Tuple, Optional
 from report_generator import generate_html_report
 import yaml
 
+# Set up logging at the start of your script
+logging.basicConfig(
+    filename='azure_security_scan.log',
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+
 # Initialize colorama for cross-platform color support
 init(autoreset=True) 
 
@@ -395,70 +403,43 @@ def run_steampipe_query(query, output_file):
             "query",
             query,
             "--output",
-            "csv",
-            "--header=false"
+            "csv"
         ]
         logging.info(f"Executing Steampipe command: {' '.join(steampipe_cmd)}")
         print(f"\n{Fore.CYAN}Executing query...{Style.RESET_ALL}")
         
-        # Check if steampipe is installed
-        try:
-            subprocess.run(["steampipe", "--version"], check=True, capture_output=True)
-        except subprocess.CalledProcessError:
-            raise RuntimeError("Steampipe is not installed or not in PATH")
+        # Execute the command and capture output
+        process = subprocess.run(steampipe_cmd, 
+                             capture_output=True,
+                             text=True,
+                             check=True)
         
-        # Use asyncio for non-blocking IO
-        process = subprocess.Popen(steampipe_cmd, 
-                               stdout=subprocess.PIPE, 
-                               stderr=subprocess.PIPE, 
-                               text=True,
-                               bufsize=1)  # Line buffered
+        # Split output into lines and remove empty lines
+        output_lines = [line.strip() for line in process.stdout.splitlines() if line.strip()]
         
-        spinner = show_spinner("Processing query")
-        stdout_data = []
-        stderr_data = []
-        
-        # Process output in chunks
-        while True:
-            next(spinner)
-            
-            # Read output without blocking
-            output = process.stdout.readline()
-            error = process.stderr.readline()
-            
-            if output:
-                stdout_data.append(output.strip())
-            if error:
-                stderr_data.append(error.strip())
-                
-            # Check if process has finished
-            if process.poll() is not None:
-                break
-                
-            time.sleep(0.1)
-        
-        print('\r', end='')  # Clear spinner line
-        
-        if process.returncode == 0:
-            # Process CSV output efficiently
-            results = [line for line in stdout_data if line.strip()]
+        if output_lines:
+            # Skip header row and keep all other lines
+            results = output_lines[1:]  # Skip header, keep everything else
             
             # Create directory if it doesn't exist
             os.makedirs(os.path.dirname(output_file), exist_ok=True)
             
-            # Write results efficiently
+            # Write results
             with open(output_file, 'w', newline='') as f:
                 f.write('\n'.join(results))
             
-            print(f"{Fore.GREEN}✓ Results saved to: {output_file}{Style.RESET_ALL}")
+            print(f"{Fore.GREEN}✓ Results saved to: {output_file} ({len(results)} resources found){Style.RESET_ALL}")
             logging.info(f"Query executed successfully. Found {len(results)} resources.")
             return True
         else:
-            error_msg = '\n'.join(stderr_data)
-            print(f"{Fore.RED}✗ Query execution failed: {error_msg}{Style.RESET_ALL}")
-            logging.error(f"Query execution failed with error: {error_msg}")
-            return False
+            print(f"{Fore.YELLOW}! No results found for query{Style.RESET_ALL}")
+            logging.info("Query executed successfully but returned no results")
+            return True
             
+    except subprocess.CalledProcessError as e:
+        print(f"{Fore.RED}✗ Query execution failed: {e.stderr}{Style.RESET_ALL}")
+        logging.error(f"Query execution failed with error: {e.stderr}")
+        return False
     except Exception as e:
         print(f"{Fore.RED}✗ Error: {str(e)}{Style.RESET_ALL}")
         logging.error(f"Exception occurred while executing query: {str(e)}")
@@ -496,66 +477,35 @@ def create_folder_structure(tenant_name, subscription_name, subscription_id):
     print(f"{Fore.GREEN}✓ Folder structure created in {base_dir}{Style.RESET_ALL}")
     return resource_folders
 
-def write_vuln_overview(vuln_overview, resource_folder, resource_type):
-    """Write vulnerability findings to both vulnerability-focused and overview CSV files."""
-    # Define file paths
-    vuln_file = os.path.join(resource_folder, f"{resource_type}_vulnerabilities.csv")
-    overview_file = os.path.join(resource_folder, f"{resource_type}_vulnerability_overview.csv")
-    
+def write_vuln_overview(vuln_overview: Dict[str, set], resource_folder: str, scan_type: str) -> None:
+    """Write vulnerability overview file in a table format with all vulnerabilities listed per resource."""
     try:
-        # Create dictionaries to store organized data
-        vuln_to_resources = {}  # For vulnerability-focused file
-        resource_to_vulns = {}  # For overview file
+        # Create the overview file in the resource type directory
+        overview_file = os.path.join(resource_folder, f"{scan_type}_vulnerability_overview.csv")
         
-        # Process each resource and its vulnerabilities
-        for resource, vulns in vuln_overview.items():
-            # Handle both single vulnerabilities and lists/sets
-            if isinstance(vulns, (list, set)):
-                vuln_list = list(vulns)
-            else:
-                vuln_list = [str(vulns)]
-            
-            # Clean and normalize resource name
-            resource_name = resource.strip().strip('"')
-            
-            # Store for overview file (resource -> vulnerabilities)
-            if resource_name not in resource_to_vulns:
-                resource_to_vulns[resource_name] = set()
-            resource_to_vulns[resource_name].update(vuln_list)
-            
-            # Store for vulnerability file (vulnerability -> resources)
-            for vuln in vuln_list:
-                if vuln not in vuln_to_resources:
-                    vuln_to_resources[vuln] = set()
-                vuln_to_resources[vuln].add(resource_name)
+        logging.info(f"Writing overview to: {overview_file}")
+        print(f"{Fore.CYAN}Writing overview to: {overview_file}{Style.RESET_ALL}")
         
-        # Write vulnerability-focused file
-        with open(vuln_file, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.writer(f, quoting=csv.QUOTE_ALL)
-            writer.writerow(["Vulnerability", "Affected Resources"])
+        # Write the overview file with headers matching the desired format
+        with open(overview_file, 'w', newline='') as f:
+            writer = csv.writer(f)
+            # Write headers
+            writer.writerow(["Resource", "Vulnerabilities"])
             
-            for vuln in sorted(vuln_to_resources.keys()):
-                resources_string = ', '.join(sorted(vuln_to_resources[vuln]))
-                writer.writerow([vuln, resources_string])
+            # Write each resource and its vulnerabilities
+            for resource, vulns in vuln_overview.items():
+                # Sort vulnerabilities and join with semicolons
+                vuln_list = ";".join(sorted(vulns))
+                writer.writerow([resource, vuln_list])
+                
+                logging.info(f"Added resource to overview: {resource} with {len(vulns)} findings")
         
-        # Write overview file
-        with open(overview_file, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.writer(f, quoting=csv.QUOTE_ALL)
-            writer.writerow(["Resource Name", "Vulnerabilities Found"])
-            
-            for resource in sorted(resource_to_vulns.keys()):
-                vulns_string = '; '.join(sorted(resource_to_vulns[resource]))
-                writer.writerow([resource, vulns_string])
-        
-        print(f"{Fore.GREEN}✓ Vulnerability files saved for {resource_type}:")
-        print(f"  - Overview: {overview_file}")
-        print(f"  - Vulnerabilities: {vuln_file}{Style.RESET_ALL}")
-        logging.info(f"Vulnerability files written for {resource_type}")
+        print(f"{Fore.GREEN}✓ Overview file written: {overview_file}{Style.RESET_ALL}")
+        logging.info(f"Completed writing vulnerability overview to {overview_file}")
         
     except Exception as e:
-        error_msg = f"Error writing vulnerability files: {str(e)}"
-        print(f"{Fore.RED}✗ {error_msg}{Style.RESET_ALL}")
-        logging.error(error_msg)
+        print(f"{Fore.RED}Error writing overview file: {str(e)}{Style.RESET_ALL}")
+        logging.error(f"Failed to write vulnerability overview: {str(e)}")
 
 def run_scans(resource_folder, scans, scan_type):
     """Run a list of scans and save results to the resource folder."""
@@ -687,6 +637,8 @@ def run_selected_scans(resource_folder, selected_scans, scan_type):
 def scan_resource_group(resource_folder: str, scan_type: str) -> None:
     """Run scans for a resource group using YAML definitions."""
     try:
+        print(f"\n{Fore.CYAN}Debug: Scanning resource folder: {resource_folder}{Style.RESET_ALL}")
+        
         scans = load_scan_definitions(scan_type)
         if not scans:
             print(f"{Fore.YELLOW}No scan definitions found for {scan_type}{Style.RESET_ALL}")
@@ -694,66 +646,86 @@ def scan_resource_group(resource_folder: str, scan_type: str) -> None:
 
         print(f"\n{Fore.CYAN}Running {len(scans)} scans for {scan_type}...{Style.RESET_ALL}")
         
+        # Dictionary to collect vulnerabilities for overview
+        vuln_overview = {}
+        
         for scan in scans:
-            # Only check for required fields: name, query, output_file
-            required_fields = {'name', 'query', 'output_file'}
-            if not all(field in scan for field in required_fields):
-                print(f"{Fore.RED}Invalid scan definition - missing required fields{Style.RESET_ALL}")
-                continue
-                
             scan_name = scan['name']
             query = scan['query']
             output_file = os.path.join(resource_folder, scan['output_file'])
             
             print(f"\n{Fore.YELLOW}Running scan: {scan_name}{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}Output will be saved to: {output_file}{Style.RESET_ALL}")
             
             if run_steampipe_query(query, output_file):
-                print(f"{Fore.GREEN}✓ Scan completed: {scan_name}{Style.RESET_ALL}")
-                if os.path.exists(output_file) and os.path.getsize(output_file) > 0:
-                    print(f"{Fore.RED}! Found issues - check {output_file}{Style.RESET_ALL}")
-            else:
-                print(f"{Fore.RED}✗ Scan failed: {scan_name}{Style.RESET_ALL}")
+                # Read the results and add to overview
+                if os.path.exists(output_file):
+                    with open(output_file, 'r') as f:
+                        resources = [line.strip() for line in f if line.strip()]
+                        if resources:  # Only process if we found vulnerable resources
+                            print(f"{Fore.GREEN}Found resources: {resources}{Style.RESET_ALL}")
+                            for resource in resources:
+                                if resource not in vuln_overview:
+                                    vuln_overview[resource] = set()
+                                vuln_overview[resource].add(scan_name)
+                            print(f"{Fore.RED}! Found {len(resources)} vulnerable resources{Style.RESET_ALL}")
+                        else:
+                            print(f"{Fore.YELLOW}No vulnerable resources found in {output_file}{Style.RESET_ALL}")
+
+        # Generate overview file if we found any vulnerabilities
+        if vuln_overview:
+            print(f"\n{Fore.CYAN}Debug: Writing overview with {len(vuln_overview)} resources{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}Overview contents: {vuln_overview}{Style.RESET_ALL}")
+            write_vuln_overview(vuln_overview, resource_folder, scan_type)
+        else:
+            print(f"\n{Fore.YELLOW}No vulnerabilities found to write to overview{Style.RESET_ALL}")
 
     except Exception as e:
         logging.error(f"Error in scan_resource_group for {scan_type}: {str(e)}")
         print(f"{Fore.RED}Error running scans: {str(e)}{Style.RESET_ALL}")
 
-def load_scan_definitions(scan_type: str) -> List[Dict]:
-    """Load scan definitions from YAML file.
-    
-    Args:
-        scan_type: The type of scan (e.g., 'virtual_machines', 'storage_accounts')
-        
-    Returns:
-        List of scan definitions with their metadata
-    """
+def load_scan_definitions(scan_type):
+    """Load scan definitions from YAML files."""
     try:
         # Get the directory where the script is located
         script_dir = os.path.dirname(os.path.abspath(__file__))
         scans_dir = os.path.join(script_dir, 'scans')
-        yaml_file = os.path.join(scans_dir, f'{scan_type}.yaml')
         
-        # Debug logging
-        print(f"{Fore.YELLOW}Looking for scan definitions at: {yaml_file}{Style.RESET_ALL}")
+        # Debug: Print current working directory
+        print(f"{Fore.YELLOW}Current working directory: {os.getcwd()}{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}Script directory: {script_dir}{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}Looking for scans in: {scans_dir}{Style.RESET_ALL}")
         
         if not os.path.exists(scans_dir):
             print(f"{Fore.RED}Scans directory not found at: {scans_dir}{Style.RESET_ALL}")
-            return []
+            # Try relative to current working directory
+            alt_scans_dir = os.path.join(os.getcwd(), 'scans')
+            if os.path.exists(alt_scans_dir):
+                scans_dir = alt_scans_dir
+                print(f"{Fore.GREEN}Found scans directory at: {scans_dir}{Style.RESET_ALL}")
+            else:
+                print(f"{Fore.RED}Also checked: {alt_scans_dir}{Style.RESET_ALL}")
+                return None
             
+        yaml_file = os.path.join(scans_dir, f'{scan_type.lower()}.yaml')
+        print(f"{Fore.CYAN}Looking for scan definitions at: {yaml_file}{Style.RESET_ALL}")
+        
         if not os.path.exists(yaml_file):
-            print(f"{Fore.RED}Scan file not found at: {yaml_file}{Style.RESET_ALL}")
-            return []
-
+            print(f"{Fore.RED}Scan definition file not found: {yaml_file}{Style.RESET_ALL}")
+            return None
+            
         with open(yaml_file, 'r') as f:
             scan_data = yaml.safe_load(f)
-            count = len(scan_data.get('scans', []))
-            print(f"{Fore.GREEN}Loaded {count} scan definitions from {yaml_file}{Style.RESET_ALL}")
-            return scan_data.get('scans', [])
+            if not scan_data or 'scans' not in scan_data:
+                print(f"{Fore.RED}Invalid scan definition format in {yaml_file}{Style.RESET_ALL}")
+                return None
                 
+            return scan_data['scans']
+            
     except Exception as e:
-        print(f"{Fore.RED}Error loading scan definitions for {scan_type}: {str(e)}{Style.RESET_ALL}")
-        logging.error(f"Error loading scan definitions for {scan_type}: {str(e)}")
-        return []
+        print(f"{Fore.RED}Error loading scan definitions: {str(e)}{Style.RESET_ALL}")
+        logging.error(f"Error loading scan definitions: {str(e)}")
+        return None
 
 def scan_virtual_machines(resource_folder):
     """Run Steampipe scans for virtual machines."""

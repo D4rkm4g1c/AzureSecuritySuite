@@ -1,12 +1,17 @@
-__version__ = "1.1.1"
+__version__ = "1.1.2"
 
 
 # Changelog
 # ---------
+# v1.1.2 (12-12-2024)
+# - Enhanced HTML report generation with improved views
+# - Added "No affected resources" display in vulnerability view
+# - Simplified executive summary to show three key metrics
+# - Improved resource view with comma-separated findings
+# - Fixed CSS styling issues in report generation
+
 # v1.1.1 (11-12-2024)
 # - fixed all scannings 
-
-
 
 # v1.1.0 (09-12-2024)
 # - Migrated all scan definitions to YAML format for better maintainability
