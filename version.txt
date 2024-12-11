@@ -1,7 +1,13 @@
-__version__ = "1.1.0"
+__version__ = "1.1.1"
+
 
 # Changelog
 # ---------
+# v1.1.1 (11-12-2024)
+# - fixed all scannings 
+
+
+
 # v1.1.0 (09-12-2024)
 # - Migrated all scan definitions to YAML format for better maintainability
 # - Standardized scan file naming conventions
