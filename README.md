@@ -226,4 +226,4 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 ## Contact
 
-For questions or support, please contact me.
+For questions or support, please contact me or raise an issue :)
