@@ -1,15 +1,17 @@
 scans:
-  - name: "Web App Authentication Settings"
+  - name: "Ensure App Service Authentication is set up for apps in Azure
+App Service"
     query: >-
-      SELECT name 
-      FROM azure_app_service_web_app AS app
-    output_file: "web_app_auth_settings.csv"
-
-  - name: "Function App Authentication Settings"
-    query: >-
-      SELECT name 
+      SELECT name
+      FROM azure_app_service_web_app
+      WHERE NOT (auth_settings -> 'properties' ->> 'enabled')::boolean
+        OR (auth_settings -> 'properties' ->> 'enabled') IS NULL
+      UNION
+      SELECT name
       FROM azure_app_service_function_app
-    output_file: "function_app_auth_settings.csv"
+      WHERE NOT (auth_settings -> 'properties' ->> 'enabled')::boolean
+        OR (auth_settings -> 'properties' ->> 'enabled') IS NULL
+    output_file: "app_auth_settings.csv"
 
   - name: "HTTPS Only Not Enabled"
     query: >-
@@ -25,18 +27,29 @@ scans:
       WHERE NOT app.client_cert_enabled
     output_file: "function_app_client_cert.csv"
 
-  - name: "Managed Identity Not Configured"
+  - name: "Ensure that Register with Entra ID is enabled on App Service"
     query: >-
-      SELECT app.name 
-      FROM azure_app_service_web_app AS app 
-      WHERE app.identity = '{}'
-    output_file: "web_app_managed_identity.csv"
+      SELECT name
+      FROM azure_app_service_web_app
+      WHERE configuration -> 'properties' ->> 'xManagedServiceIdentityId' IS NULL
+        AND configuration -> 'properties' ->> 'managedServiceIdentityId' IS NULL
+      UNION
+      SELECT name
+      FROM azure_app_service_function_app
+      WHERE configuration -> 'properties' ->> 'xManagedServiceIdentityId' IS NULL
+        AND configuration -> 'properties' ->> 'managedServiceIdentityId' IS NULL
+    output_file: "app_managed_identity.csv"
 
   - name: "HTTP/2 Not Enabled"
     query: >-
-      SELECT name 
-      FROM azure_app_service_web_app 
-      WHERE (configuration -> 'properties' ->> 'http20Enabled')::boolean = false 
+      SELECT name
+    FROM azure_app_service_web_app
+    WHERE (configuration -> 'properties' ->> 'http20Enabled')::boolean = false
+      OR (configuration -> 'properties' ->> 'http20Enabled') IS NULL
+    UNION ALL
+    SELECT name
+    FROM azure_app_service_function_app
+    WHERE (configuration -> 'properties' ->> 'http20Enabled')::boolean = false
       OR (configuration -> 'properties' ->> 'http20Enabled') IS NULL
     output_file: "web_app_http2.csv"
 
@@ -55,36 +68,22 @@ scans:
       AND sub.subscription_id = app.subscription_id
     output_file: "app_names_no_client_cert.csv"
 
-  - name: "Outdated TLS Version (Web Apps)"
+  - name: "Outdated TLS Version (All Apps)"
     query: >-
-      SELECT app.name AS resource 
-      FROM azure_app_service_web_app AS app, azure_subscription AS sub 
-      WHERE (configuration -> 'properties' ->> 'minTlsVersion') < '1.2' 
-      AND sub.subscription_id = app.subscription_id
-    output_file: "app_names_tls_v1_2.csv"
-
-  - name: "Outdated TLS Version (Function Apps)"
-    query: >-
-      SELECT app.name AS resource 
-      FROM azure_app_service_function_app AS app, azure_subscription AS sub 
-      WHERE (configuration -> 'properties' ->> 'minTlsVersion') < '1.2' 
-      AND sub.subscription_id = app.subscription_id
-    output_file: "function_app_names_tls_v1_2.csv"
-
-  - name: "Outdated TLS Version (API Apps)"
-    query: >-
-      WITH all_api_app AS (
-        SELECT id, name 
-        FROM azure_app_service_web_app 
-        WHERE EXISTS (
-          SELECT 1 
-          FROM unnest(regexp_split_to_array(kind, ',')) elem 
-          WHERE elem LIKE '%api'
-        )
-      ) 
-      SELECT a.name AS app_name 
-      FROM azure_app_service_web_app AS a 
-      LEFT JOIN all_api_app AS b ON a.id = b.id 
-      WHERE b.id IS NOT NULL 
-      AND (configuration -> 'properties' ->> 'minTlsVersion') < '1.2'
-    output_file: "api_app_tls_check.csv"
+      SELECT DISTINCT resource
+      FROM (
+        -- Web Apps (including API apps)
+        SELECT name AS resource,
+               configuration -> 'properties' ->> 'minTlsVersion' as tls_version
+        FROM azure_app_service_web_app
+        
+        UNION ALL
+        
+        -- Function Apps
+        SELECT name AS resource,
+               configuration -> 'properties' ->> 'minTlsVersion' as tls_version
+        FROM azure_app_service_function_app
+      ) apps
+      WHERE tls_version < '1.2'
+      ORDER BY resource
+    output_file: "all_apps_tls_v1_2.csv"

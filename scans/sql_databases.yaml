@@ -13,35 +13,16 @@ scans:
       FROM azure_sql_server s, 
       jsonb_array_elements(s.server_audit_policy) AS audit 
       WHERE (audit -> 'properties' ->> 'retentionDays')::integer < 90
+      AND (audit -> 'properties' ->> 'retentionDays')::integer != 0
     output_file: "sql_server_audit_retention_less_than_90.csv"
-
-  - name: "Firewall Rules Allowing 0.0.0.0/0"
-    query: >-
-      SELECT s.name AS resource 
-      FROM azure_sql_server s 
-      WHERE firewall_rules @> '[{"properties":{"endIpAddress":"0.0.0.0","startIpAddress":"0.0.0.0"}}]' 
-      OR firewall_rules @> '[{"properties":{"endIpAddress":"255.255.255.255","startIpAddress":"0.0.0.0"}}]'
-    output_file: "sql_server_firewall_ingress_0_0_0_0.csv"
-
-  - name: "Public Network Access Enabled"
-    query: >-
-      SELECT s.name AS resource 
-      FROM azure_sql_server s 
-      WHERE public_network_access = 'Enabled'
-    output_file: "sql_server_public_network_access_enabled.csv"
-
+    
   - name: "Azure AD Authentication Not Enabled"
     query: >-
-      WITH sever_with_ad_admin AS (
-        SELECT DISTINCT a.id 
-        FROM azure_sql_server AS a, 
-        jsonb_array_elements(server_azure_ad_administrator) AS ad_admin 
-        WHERE ad_admin ->> 'type' = 'Microsoft.Sql/servers/administrators'
-      ) 
-      SELECT a.name AS resource 
-      FROM azure_sql_server AS a 
-      LEFT JOIN sever_with_ad_admin AS s ON a.id = s.id 
-      WHERE s.id IS NULL
+      SELECT a.name
+      FROM azure_sql_server AS a
+      WHERE a.server_azure_ad_administrator IS NULL 
+         OR a.server_azure_ad_administrator = '[]'
+         OR jsonb_array_length(a.server_azure_ad_administrator) = 0
     output_file: "sql_server_azure_ad_auth_not_enabled.csv"
 
   - name: "TDE Protector Not Using Customer-Managed Key"
@@ -53,3 +34,15 @@ scans:
       WHERE sub.subscription_id = s.subscription_id 
       AND encryption ->> 'kind' = 'servicemanaged'
     output_file: "tde_protector_not_cmk.csv"
+
+  - name: " SQL Public Network Access Enabled"
+    query: >-
+      SELECT s.name AS resource 
+      FROM azure_sql_server s 
+      WHERE public_network_access = 'Enabled'
+      AND (
+        firewall_rules @> '[{"properties":{"endIpAddress":"0.0.0.0","startIpAddress":"0.0.0.0"}}]' 
+        OR firewall_rules @> '[{"properties":{"endIpAddress":"255.255.255.255","startIpAddress":"0.0.0.0"}}]'
+        OR public_network_access = 'Enabled'
+      )
+    output_file: "sql_server_network_security_issues.csv"
