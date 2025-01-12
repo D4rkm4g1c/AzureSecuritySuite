@@ -1181,6 +1181,23 @@ def update_script():
             'report_generator.py': 'report_generator.py'
         }
         
+        # Add YAML scan definition files
+        yaml_files = [
+            'scans/virtual_machines.yaml',
+            'scans/storage_accounts.yaml',
+            'scans/app_services.yaml',
+            'scans/network_security_groups.yaml',
+            'scans/sql_databases.yaml',
+            'scans/key_vaults.yaml',
+            'scans/postgresql_databases.yaml',
+            'scans/mysql_databases.yaml',
+            'scans/cosmos_databases.yaml'
+        ]
+        
+        # Add YAML files to the update list
+        for yaml_file in yaml_files:
+            files_to_update[yaml_file] = yaml_file
+
         script_dir = os.path.dirname(os.path.abspath(__file__))
         
         print(f"{Fore.CYAN}Starting update process...{Style.RESET_ALL}")
@@ -1199,6 +1216,10 @@ def update_script():
                 local_path = os.path.join(script_dir, local_name)
                 temp_path = local_path + '.tmp'
                 backup_path = os.path.join(backup_dir, local_name)
+                
+                # Create directory structure if needed (for YAML files in subdirectories)
+                os.makedirs(os.path.dirname(local_path), exist_ok=True)
+                os.makedirs(os.path.dirname(backup_path), exist_ok=True)
                 
                 # Create backup if file exists
                 if os.path.exists(local_path):
