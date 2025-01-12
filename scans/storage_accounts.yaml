@@ -52,3 +52,40 @@ scans:
       FROM azure_storage_account 
       WHERE blob_versioning_enabled IS NOT TRUE
     output_file: "blob_versioning.csv"
+
+    - name: "Encryption Key Source (CMK)"
+  query: >-
+    SELECT sa.name 
+    FROM azure_storage_account sa
+    JOIN azure_subscription sub ON sub.subscription_id = sa.subscription_id
+    WHERE sa.encryption_key_source != 'Microsoft.Storage'
+  output_file: "cmk_not_in_use.csv"
+
+cli_scans:
+  - name: "Keys Not Regenerated (90 Days)"
+    query: |
+      #!/bin/bash
+      # Create header for CSV format
+      echo "name"
+      
+      for subscription in $(az account list --query "[].id" -o tsv); do
+        storage_accounts=$(az storage account list --subscription "$subscription" --query "[].{id:id, name:name, resourceGroup:resourceGroup}" -o json)
+        echo "$storage_accounts" | jq -c '.[]' | while read -r account; do
+          account_id=$(echo "$account" | jq -r '.id')
+          account_name=$(echo "$account" | jq -r '.name')
+          
+          key_regeneration_logs=$(az monitor activity-log list \
+            --resource-id "$account_id" \
+            --namespace "Microsoft.Storage" \
+            --offset 90d \
+            --query "[?contains(authorization.action, 'regenerateKey') && status.value=='Succeeded']" \
+            -o json)
+          
+          if [[ "$key_regeneration_logs" == "[]" ]]; then
+            # Output just the name for CSV format
+            echo "$account_name"
+          fi
+        done
+      done
+    shell: true
+    output_file: "key_regeneration.csv"

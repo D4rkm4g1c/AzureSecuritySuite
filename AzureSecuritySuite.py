@@ -601,17 +601,37 @@ def display_scan_submenu(scans, resource_type):
     """Display submenu for selecting specific scans."""
     try:
         print(f"\n{Fore.CYAN}Available {resource_type} Scans:{Style.RESET_ALL}")
-        options = ["Run All"] + [scan[0] for scan in scans]
+        
+        # Combine both steampipe and CLI scans if they exist
+        all_scans = []
+        if isinstance(scans, dict):
+            if 'steampipe' in scans:
+                all_scans.extend([('Steampipe', scan) for scan in scans['steampipe']])
+            if 'cli' in scans:
+                all_scans.extend([('CLI', scan) for scan in scans['cli']])
+        
+        # Create list of scan names with their types
+        options = ["Run All Scans"]
+        for scan_type, scan in all_scans:
+            options.append(f"{scan_type}: {scan['name']}")
         
         choice = display_menu(f"Select {resource_type} Scan", options, show_back=True)
+        
         if choice is None or choice == 0:  # User cancelled or selected back
             return None
             
         if choice == 1:  # Run All selected
             return scans
         elif 1 < choice <= len(options):
-            # Return only the selected scan
-            return [scans[choice - 2]]  # -2 because we added "Run All" at the beginning
+            # Return only the selected scan in the appropriate structure
+            selected_scan = all_scans[choice - 2]  # -2 because we added "Run All" at the beginning
+            scan_type, scan = selected_scan
+            
+            # Return the scan in the same structure as the original
+            if scan_type == 'Steampipe':
+                return {'steampipe': [scan], 'cli': []}
+            else:
+                return {'steampipe': [], 'cli': [scan]}
         else:
             print(f"{Fore.RED}Invalid selection{Style.RESET_ALL}")
             return None
@@ -621,61 +641,48 @@ def display_scan_submenu(scans, resource_type):
         logging.error(f"Error displaying scan submenu: {str(e)}")
         return None
 
-def run_selected_scans(resource_folder, selected_scans, scan_type):
-    """Run only the selected scans for a resource type."""
-    if not selected_scans:
-        return
-        
-    try:
-        print(f"\n{Fore.CYAN}Running selected {scan_type} scans...{Style.RESET_ALL}")
-        run_scans(resource_folder, selected_scans, scan_type)
-        
-    except Exception as e:
-        print(f"{Fore.RED}Error running selected scans: {str(e)}{Style.RESET_ALL}")
-        logging.error(f"Error running selected scans: {str(e)}")
-
 def scan_resource_group(resource_folder: str, scan_type: str) -> None:
-    """Run scans for a resource group using YAML definitions."""
+    """Run scans for a resource group using both Steampipe and Azure CLI."""
     try:
-        print(f"\n{Fore.CYAN}Debug: Scanning resource folder: {resource_folder}{Style.RESET_ALL}")
+        print(f"\n{Fore.CYAN}Scanning resource folder: {resource_folder}{Style.RESET_ALL}")
         
-        scans = load_scan_definitions(scan_type)
-        if not scans:
+        # Load all available scans
+        all_scans = load_scan_definitions(scan_type)
+        if not all_scans:
             print(f"{Fore.YELLOW}No scan definitions found for {scan_type}{Style.RESET_ALL}")
             return
 
-        print(f"\n{Fore.CYAN}Running {len(scans)} scans for {scan_type}...{Style.RESET_ALL}")
-        
-        # Dictionary to collect vulnerabilities for overview
+        # Display submenu for scan selection
+        selected_scans = display_scan_submenu(all_scans, scan_type)
+        if not selected_scans:
+            return
+
         vuln_overview = {}
         
-        for scan in scans:
-            scan_name = scan['name']
-            query = scan['query']
-            output_file = os.path.join(resource_folder, scan['output_file'])
-            
-            print(f"\n{Fore.YELLOW}Running scan: {scan_name}{Style.RESET_ALL}")
-            print(f"{Fore.CYAN}Output will be saved to: {output_file}{Style.RESET_ALL}")
-            
-            if run_steampipe_query(query, output_file):
-                # Read the results and add to overview
-                if os.path.exists(output_file):
-                    with open(output_file, 'r') as f:
-                        resources = [line.strip() for line in f if line.strip()]
-                        if resources:  # Only process if we found vulnerable resources
-                            print(f"{Fore.GREEN}Found resources: {resources}{Style.RESET_ALL}")
-                            for resource in resources:
-                                if resource not in vuln_overview:
-                                    vuln_overview[resource] = set()
-                                vuln_overview[resource].add(scan_name)
-                            print(f"{Fore.RED}! Found {len(resources)} vulnerable resources{Style.RESET_ALL}")
-                        else:
-                            print(f"{Fore.YELLOW}No vulnerable resources found in {output_file}{Style.RESET_ALL}")
+        # Run Steampipe scans
+        if selected_scans.get('steampipe'):
+            print(f"\n{Fore.CYAN}Running Steampipe scans...{Style.RESET_ALL}")
+            for scan in selected_scans['steampipe']:
+                scan_name = scan['name']
+                query = scan['query']
+                output_file = os.path.join(resource_folder, scan['output_file'])
+                
+                if run_steampipe_query(query, output_file):
+                    _process_scan_results(output_file, scan_name, vuln_overview)
+
+        # Run CLI scans
+        if selected_scans.get('cli'):
+            print(f"\n{Fore.CYAN}Running Azure CLI scans...{Style.RESET_ALL}")
+            for scan in selected_scans['cli']:
+                scan_name = scan['name']
+                query = scan['query']
+                output_file = os.path.join(resource_folder, scan['output_file'])
+                
+                if run_cli_query(query, output_file):
+                    _process_scan_results(output_file, scan_name, vuln_overview)
 
         # Generate overview file if we found any vulnerabilities
         if vuln_overview:
-            print(f"\n{Fore.CYAN}Debug: Writing overview with {len(vuln_overview)} resources{Style.RESET_ALL}")
-            print(f"{Fore.CYAN}Overview contents: {vuln_overview}{Style.RESET_ALL}")
             write_vuln_overview(vuln_overview, resource_folder, scan_type)
         else:
             print(f"\n{Fore.YELLOW}No vulnerabilities found to write to overview{Style.RESET_ALL}")
@@ -684,29 +691,28 @@ def scan_resource_group(resource_folder: str, scan_type: str) -> None:
         logging.error(f"Error in scan_resource_group for {scan_type}: {str(e)}")
         print(f"{Fore.RED}Error running scans: {str(e)}{Style.RESET_ALL}")
 
+def _process_scan_results(output_file, scan_name, vuln_overview):
+    """Process scan results and add them to the vulnerability overview."""
+    if os.path.exists(output_file):
+        with open(output_file, 'r') as f:
+            # Skip the header line and get non-empty lines
+            lines = [line.strip() for line in f.readlines()[1:] if line.strip()]
+            if lines:
+                print(f"{Fore.GREEN}Found resources: {lines}{Style.RESET_ALL}")
+                for resource in lines:
+                    if resource not in vuln_overview:
+                        vuln_overview[resource] = set()
+                    vuln_overview[resource].add(scan_name)
+                print(f"{Fore.RED}! Found {len(lines)} vulnerable resources{Style.RESET_ALL}")
+            else:
+                print(f"{Fore.YELLOW}No vulnerable resources found in {output_file}{Style.RESET_ALL}")
+
 def load_scan_definitions(scan_type):
-    """Load scan definitions from YAML files."""
+    """Load scan definitions from YAML files with support for both Steampipe and Azure CLI."""
     try:
-        # Get the directory where the script is located
         script_dir = os.path.dirname(os.path.abspath(__file__))
         scans_dir = os.path.join(script_dir, 'scans')
         
-        # Debug: Print current working directory
-        print(f"{Fore.YELLOW}Current working directory: {os.getcwd()}{Style.RESET_ALL}")
-        print(f"{Fore.YELLOW}Script directory: {script_dir}{Style.RESET_ALL}")
-        print(f"{Fore.YELLOW}Looking for scans in: {scans_dir}{Style.RESET_ALL}")
-        
-        if not os.path.exists(scans_dir):
-            print(f"{Fore.RED}Scans directory not found at: {scans_dir}{Style.RESET_ALL}")
-            # Try relative to current working directory
-            alt_scans_dir = os.path.join(os.getcwd(), 'scans')
-            if os.path.exists(alt_scans_dir):
-                scans_dir = alt_scans_dir
-                print(f"{Fore.GREEN}Found scans directory at: {scans_dir}{Style.RESET_ALL}")
-            else:
-                print(f"{Fore.RED}Also checked: {alt_scans_dir}{Style.RESET_ALL}")
-                return None
-            
         yaml_file = os.path.join(scans_dir, f'{scan_type.lower()}.yaml')
         print(f"{Fore.CYAN}Looking for scan definitions at: {yaml_file}{Style.RESET_ALL}")
         
@@ -716,16 +722,91 @@ def load_scan_definitions(scan_type):
             
         with open(yaml_file, 'r') as f:
             scan_data = yaml.safe_load(f)
-            if not scan_data or 'scans' not in scan_data:
-                print(f"{Fore.RED}Invalid scan definition format in {yaml_file}{Style.RESET_ALL}")
+            if not scan_data:
                 return None
-                
-            return scan_data['scans']
+
+            # Support both steampipe and cli scans
+            steampipe_scans = scan_data.get('scans', [])
+            cli_scans = scan_data.get('cli_scans', [])
+            
+            return {
+                'steampipe': steampipe_scans,
+                'cli': cli_scans
+            }
             
     except Exception as e:
         print(f"{Fore.RED}Error loading scan definitions: {str(e)}{Style.RESET_ALL}")
         logging.error(f"Error loading scan definitions: {str(e)}")
         return None
+
+def run_cli_query(query, output_file):
+    """Run an Azure CLI query and save the output to a file."""
+    try:
+        print(f"\n{Fore.CYAN}Executing CLI query...{Style.RESET_ALL}")
+        
+        # Check if this is a shell script
+        if query.strip().startswith('#!/bin/bash'):
+            # Create a temporary shell script
+            temp_script = 'temp_script.sh'
+            
+            try:
+                # Write the script
+                with open(temp_script, 'w') as f:
+                    f.write(query)
+                
+                # Make it executable
+                os.chmod(temp_script, 0o755)
+                
+                # Execute the script
+                print(f"{Fore.CYAN}Executing shell script...{Style.RESET_ALL}")
+                process = subprocess.run(
+                    f'./{temp_script}',
+                    shell=True,
+                    capture_output=True,
+                    text=True
+                )
+                
+                if process.returncode != 0:
+                    print(f"{Fore.RED}Script execution failed: {process.stderr}{Style.RESET_ALL}")
+                    return False
+                
+            finally:
+                # Clean up temporary script
+                if os.path.exists(temp_script):
+                    os.remove(temp_script)
+        else:
+            # Regular Azure CLI command
+            process = subprocess.run(
+                query,
+                shell=True,
+                capture_output=True,
+                text=True
+            )
+            
+            if process.returncode != 0:
+                print(f"{Fore.RED}Command execution failed: {process.stderr}{Style.RESET_ALL}")
+                return False
+        
+        # Process output
+        if process.stdout:
+            # Create directory if it doesn't exist
+            os.makedirs(os.path.dirname(output_file), exist_ok=True)
+            
+            # Write results
+            with open(output_file, 'w', newline='') as f:
+                f.write(process.stdout)
+            
+            print(f"{Fore.GREEN}✓ Results saved to: {output_file}{Style.RESET_ALL}")
+            logging.info(f"CLI query executed successfully")
+            return True
+        else:
+            print(f"{Fore.YELLOW}! No results found{Style.RESET_ALL}")
+            return True
+            
+    except Exception as e:
+        print(f"{Fore.RED}✗ Error: {str(e)}{Style.RESET_ALL}")
+        logging.error(f"Exception in CLI query: {str(e)}")
+        return False
 
 def scan_virtual_machines(resource_folder):
     """Run Steampipe scans for virtual machines."""
