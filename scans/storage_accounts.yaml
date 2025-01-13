@@ -1,11 +1,10 @@
 scans:
-  - name: "Public Blob Access Enabled"
+  - name: "Blob Container Public Access"
     query: >-
       SELECT name 
       FROM azure_storage_account 
       WHERE allow_blob_public_access = true
-    output_file: "public_blob_access.csv"
-
+    output_file: "Blob_Container_Public_Access.csv"
 
   - name: "Soft Delete Disabled"
     query: >-
@@ -14,52 +13,50 @@ scans:
       WHERE blob_soft_delete_enabled = false
     output_file: "soft_delete_disabled.csv"
 
-
-  - name: "Network Default Allow"
+  - name: "Overly-Permissive Storage Account"
     query: >-
       SELECT name 
       FROM azure_storage_account 
       WHERE network_rule_default_action = 'Allow'
-    output_file: "network_default_allow.csv"
+    output_file: "Overly-Permissive_Storage_Account.csv"
 
-
-  - name: "Infrastructure Encryption Disabled"
+  - name: "Disabled Infrastructure Encryption"
     query: >-
       SELECT name 
       FROM azure_storage_account 
       WHERE require_infrastructure_encryption IS NOT TRUE
-    output_file: "infrastructure_encryption.csv"
+    output_file: "Disabled_Infrastructure_Encryption.csv"
     
-  - name: "HTTPS Traffic Only Disabled"
+  - name: "Secure Transfer Disabled"
     query: >-
       SELECT name 
       FROM azure_storage_account 
       WHERE enable_https_traffic_only = 'False'
-    output_file: "https_traffic_only.csv"
+    output_file: "Secure_Transfer_Disabled.csv"
 
-
-  - name: "Insecure TLS Version"
+  - name: "Minimum TLS Version Required"
     query: >-
       SELECT name 
       FROM azure_storage_account 
       WHERE minimum_tls_version IN ('TLS1_0', 'TLS1_1')
-    output_file: "tls_version.csv"
-    
+    output_file: "Minimum_TLS_Version_Required.csv"
 
   - name: "Blob Versioning Disabled"
     query: >-
       SELECT name 
       FROM azure_storage_account 
       WHERE blob_versioning_enabled IS NOT TRUE
-    output_file: "blob_versioning.csv"
+    output_file: "Blob_Versioning_Disabled.csv"
 
-    - name: "Encryption Key Source (CMK)"
-  query: >-
-    SELECT sa.name 
-    FROM azure_storage_account sa
-    JOIN azure_subscription sub ON sub.subscription_id = sa.subscription_id
-    WHERE sa.encryption_key_source != 'Microsoft.Storage'
-  output_file: "cmk_not_in_use.csv"
+  - name: "Storage Accounts Encrypted with Microsoft Managed Keys"
+    query: >-
+      SELECT 
+        sa.name as resource
+      FROM
+        azure_storage_account sa
+      WHERE
+        sa.encryption_key_source = 'Microsoft.Storage'
+    output_file: "Storage_Accounts_Encrypted_with_MMK.csv"
 
 cli_scans:
   - name: "Keys Not Regenerated (90 Days)"

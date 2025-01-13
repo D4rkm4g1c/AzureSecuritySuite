@@ -17,6 +17,7 @@ from html import escape
 from typing import Dict, List, Tuple, Optional
 from report_generator import generate_html_report
 import yaml
+import traceback
 
 # Set up logging at the start of your script
 logging.basicConfig(
@@ -600,45 +601,54 @@ def run_all_scans(resource_folders):
 def display_scan_submenu(scans, resource_type):
     """Display submenu for selecting specific scans."""
     try:
+        logging.info(f"Displaying scan submenu for {resource_type}")
         print(f"\n{Fore.CYAN}Available {resource_type} Scans:{Style.RESET_ALL}")
         
-        # Combine both steampipe and CLI scans if they exist
-        all_scans = []
-        if isinstance(scans, dict):
-            if 'steampipe' in scans:
-                all_scans.extend([('Steampipe', scan) for scan in scans['steampipe']])
-            if 'cli' in scans:
-                all_scans.extend([('CLI', scan) for scan in scans['cli']])
-        
-        # Create list of scan names with their types
         options = ["Run All Scans"]
-        for scan_type, scan in all_scans:
-            options.append(f"{scan_type}: {scan['name']}")
+        
+        # Log scan data structure
+        logging.info(f"Scan data structure: {json.dumps(scans, indent=2)}")
+        
+        # Add Steampipe scans
+        if 'scans' in scans:
+            for scan in scans['scans']:
+                scan_name = scan.get('name', 'Unknown scan')
+                options.append(f"Steampipe: {scan_name}")
+                logging.info(f"Added Steampipe scan option: {scan_name}")
+                
+        # Add CLI scans
+        if 'cli_scans' in scans:
+            for scan in scans['cli_scans']:
+                scan_name = scan.get('name', 'Unknown scan')
+                options.append(f"CLI: {scan_name}")
+                logging.info(f"Added CLI scan option: {scan_name}")
+        
+        logging.info(f"Total menu options: {len(options)}")
         
         choice = display_menu(f"Select {resource_type} Scan", options, show_back=True)
+        logging.info(f"User selected option: {choice}")
         
-        if choice is None or choice == 0:  # User cancelled or selected back
+        if choice is None or choice == 0:
             return None
             
-        if choice == 1:  # Run All selected
+        if choice == 1:
             return scans
         elif 1 < choice <= len(options):
-            # Return only the selected scan in the appropriate structure
-            selected_scan = all_scans[choice - 2]  # -2 because we added "Run All" at the beginning
-            scan_type, scan = selected_scan
+            selected_index = choice - 2
+            steampipe_count = len(scans.get('scans', []))
             
-            # Return the scan in the same structure as the original
-            if scan_type == 'Steampipe':
-                return {'steampipe': [scan], 'cli': []}
+            if selected_index < steampipe_count:
+                return {'scans': [scans['scans'][selected_index]], 'cli_scans': []}
             else:
-                return {'steampipe': [], 'cli': [scan]}
+                cli_index = selected_index - steampipe_count
+                return {'scans': [], 'cli_scans': [scans['cli_scans'][cli_index]]}
         else:
-            print(f"{Fore.RED}Invalid selection{Style.RESET_ALL}")
+            logging.error(f"Invalid selection: {choice}")
             return None
             
     except Exception as e:
-        print(f"{Fore.RED}Error displaying scan submenu: {str(e)}{Style.RESET_ALL}")
-        logging.error(f"Error displaying scan submenu: {str(e)}")
+        logging.error(f"Error in display_scan_submenu: {str(e)}")
+        logging.error(traceback.format_exc())
         return None
 
 def scan_resource_group(resource_folder: str, scan_type: str) -> None:
@@ -646,50 +656,74 @@ def scan_resource_group(resource_folder: str, scan_type: str) -> None:
     try:
         print(f"\n{Fore.CYAN}Scanning resource folder: {resource_folder}{Style.RESET_ALL}")
         
-        # Load all available scans
+        # Load scan definitions
         all_scans = load_scan_definitions(scan_type)
-        if not all_scans:
-            print(f"{Fore.YELLOW}No scan definitions found for {scan_type}{Style.RESET_ALL}")
-            return
-
-        # Display submenu for scan selection
-        selected_scans = display_scan_submenu(all_scans, scan_type)
-        if not selected_scans:
-            return
-
-        vuln_overview = {}
         
-        # Run Steampipe scans
-        if selected_scans.get('steampipe'):
-            print(f"\n{Fore.CYAN}Running Steampipe scans...{Style.RESET_ALL}")
-            for scan in selected_scans['steampipe']:
-                scan_name = scan['name']
-                query = scan['query']
-                output_file = os.path.join(resource_folder, scan['output_file'])
-                
-                if run_steampipe_query(query, output_file):
-                    _process_scan_results(output_file, scan_name, vuln_overview)
+        if not all_scans:
+            print(f"{Fore.RED}No scan definitions loaded{Style.RESET_ALL}")
+            return
 
-        # Run CLI scans
-        if selected_scans.get('cli'):
-            print(f"\n{Fore.CYAN}Running Azure CLI scans...{Style.RESET_ALL}")
-            for scan in selected_scans['cli']:
-                scan_name = scan['name']
-                query = scan['query']
-                output_file = os.path.join(resource_folder, scan['output_file'])
-                
-                if run_cli_query(query, output_file):
-                    _process_scan_results(output_file, scan_name, vuln_overview)
+        # Create menu options
+        options = ["Run All Scans"]
+        scan_mapping = []  # Keep track of scan type and index
+        
+        # Add Steampipe scans
+        for scan in all_scans.get('scans', []):
+            options.append(f"Steampipe: {scan['name']}")
+            scan_mapping.append(('steampipe', len(scan_mapping)))
+            
+        # Add CLI scans
+        for scan in all_scans.get('cli_scans', []):
+            options.append(f"CLI: {scan['name']}")
+            scan_mapping.append(('cli', len(scan_mapping)))
+        
+        print(f"\n{Fore.MAGENTA}DEBUG: Menu Options:{Style.RESET_ALL}")
+        for i, option in enumerate(options):
+            print(f"{i+1}. {option}")
+            
+        print(f"\n{Fore.MAGENTA}DEBUG: Scan Mapping:{Style.RESET_ALL}")
+        print(json.dumps(scan_mapping, indent=2))
 
-        # Generate overview file if we found any vulnerabilities
-        if vuln_overview:
-            write_vuln_overview(vuln_overview, resource_folder, scan_type)
+        # Display menu
+        choice = display_menu(f"Select {scan_type} Scan", options, show_back=True)
+        
+        if choice is None or choice == 0:  # User cancelled or selected back
+            return
+            
+        if choice == 1:  # Run All selected
+            print(f"\n{Fore.MAGENTA}DEBUG: Running all scans{Style.RESET_ALL}")
+            # Run all Steampipe scans
+            for scan in all_scans.get('scans', []):
+                output_file = os.path.join(resource_folder, scan['output_file'])
+                print(f"\nRunning Steampipe scan: {scan['name']}")
+                run_steampipe_query(scan['query'], output_file)
+                
+            # Run all CLI scans
+            for scan in all_scans.get('cli_scans', []):
+                output_file = os.path.join(resource_folder, scan['output_file'])
+                print(f"\nRunning CLI scan: {scan['name']}")
+                run_cli_query(scan['query'], output_file)
         else:
-            print(f"\n{Fore.YELLOW}No vulnerabilities found to write to overview{Style.RESET_ALL}")
+            # Get selected scan
+            selected_index = choice - 2  # -2 because we added "Run All" at the beginning
+            if selected_index < len(scan_mapping):
+                scan_type, scan_index = scan_mapping[selected_index]
+                
+                if scan_type == 'steampipe':
+                    scan = all_scans['scans'][scan_index]
+                    output_file = os.path.join(resource_folder, scan['output_file'])
+                    print(f"\nRunning Steampipe scan: {scan['name']}")
+                    run_steampipe_query(scan['query'], output_file)
+                else:  # CLI scan
+                    scan = all_scans['cli_scans'][scan_index]
+                    output_file = os.path.join(resource_folder, scan['output_file'])
+                    print(f"\nRunning CLI scan: {scan['name']}")
+                    run_cli_query(scan['query'], output_file)
 
     except Exception as e:
-        logging.error(f"Error in scan_resource_group for {scan_type}: {str(e)}")
-        print(f"{Fore.RED}Error running scans: {str(e)}{Style.RESET_ALL}")
+        print(f"{Fore.RED}Error in scan_resource_group: {str(e)}{Style.RESET_ALL}")
+        logging.error(f"Error in scan_resource_group: {str(e)}")
+        traceback.print_exc()  # Print full stack trace
 
 def _process_scan_results(output_file, scan_name, vuln_overview):
     """Process scan results and add them to the vulnerability overview."""
@@ -712,31 +746,42 @@ def load_scan_definitions(scan_type):
     try:
         script_dir = os.path.dirname(os.path.abspath(__file__))
         scans_dir = os.path.join(script_dir, 'scans')
-        
         yaml_file = os.path.join(scans_dir, f'{scan_type.lower()}.yaml')
-        print(f"{Fore.CYAN}Looking for scan definitions at: {yaml_file}{Style.RESET_ALL}")
+        
+        logging.info(f"Loading scan definitions from: {yaml_file}")
         
         if not os.path.exists(yaml_file):
-            print(f"{Fore.RED}Scan definition file not found: {yaml_file}{Style.RESET_ALL}")
+            logging.error(f"Scan definition file not found: {yaml_file}")
             return None
             
         with open(yaml_file, 'r') as f:
-            scan_data = yaml.safe_load(f)
+            content = f.read()
+            logging.info(f"Raw YAML content length: {len(content)} bytes")
+            
+            scan_data = yaml.safe_load(content)
             if not scan_data:
+                logging.error("No data loaded from YAML file")
                 return None
 
-            # Support both steampipe and cli scans
             steampipe_scans = scan_data.get('scans', [])
             cli_scans = scan_data.get('cli_scans', [])
             
-            return {
-                'steampipe': steampipe_scans,
-                'cli': cli_scans
-            }
+            logging.info(f"Found {len(steampipe_scans)} Steampipe scans and {len(cli_scans)} CLI scans")
             
+            # Log individual scan names
+            for scan in steampipe_scans:
+                logging.info(f"Steampipe scan found: {scan.get('name')}")
+            for scan in cli_scans:
+                logging.info(f"CLI scan found: {scan.get('name')}")
+
+            return scan_data
+            
+    except yaml.YAMLError as ye:
+        logging.error(f"YAML parsing error: {str(ye)}")
+        return None
     except Exception as e:
-        print(f"{Fore.RED}Error loading scan definitions: {str(e)}{Style.RESET_ALL}")
         logging.error(f"Error loading scan definitions: {str(e)}")
+        logging.error(traceback.format_exc())
         return None
 
 def run_cli_query(query, output_file):

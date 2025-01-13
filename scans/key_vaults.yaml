@@ -1,19 +1,19 @@
 
 scans:
-  - name: "Network ACLs Configuration"
+  - name: "Public Access"
     query: >-
       SELECT a.name AS resource 
       FROM azure_key_vault a, azure_subscription sub 
       WHERE (network_acls IS NULL OR network_acls ->> 'defaultAction' != 'Deny') 
       AND sub.subscription_id = a.subscription_id
-    output_file: "public_network_enabled_key_vaults.csv"
+    output_file: "public_network_enabled.csv"
 
-  - name: "Soft Delete Disabled"
+  - name: "Soft Delete"
     query: >-
       SELECT name 
       FROM azure_key_vault 
       WHERE soft_delete_enabled IS NOT TRUE
-    output_file: "soft_delete_disabled.csv"
+    output_file: "soft_delete.csv"
 
   - name: "Purge Protection Status"
     query: >-
@@ -22,9 +22,9 @@ scans:
       WHERE purge_protection_enabled IS NOT TRUE
     output_file: "purge_protection_disabled.csv"
 
-  - name: "Diagnostic Settings"
+  - name: "Lack of Key Vault Logging"
     query: >-
       SELECT name 
       FROM azure_key_vault 
       WHERE diagnostic_settings IS NULL
-    output_file: "missing_diagnostics.csv"
+    output_file: "Lack_Key_Vault_Logging.csv"

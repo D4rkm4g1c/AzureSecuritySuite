@@ -1,5 +1,5 @@
 scans:
-  - name: "Unmanaged Disks"
+  - name: "Virtual Machines not utilising Managed Disks"
     query: >-
       SELECT vm.name 
       FROM azure_compute_virtual_machine AS vm, 
@@ -9,7 +9,7 @@ scans:
     output_file: "unmanaged_disks.csv"
 
 
-  - name: "Unencrypted Disks"
+  - name: "Unattached Disks lack Customer Managed Keys"
     query: >-
       SELECT disk.name 
       FROM azure_compute_disk AS disk, 
@@ -17,4 +17,4 @@ scans:
       WHERE disk_state != 'Attached' 
       AND sub.subscription_id = disk.subscription_id 
       AND encryption_type != 'EncryptionAtRestWithCustomerKey'
-    output_file: "unencrypted_disks.csv"
+    output_file: "Unattached_Disks_lack_CMK.csv"
