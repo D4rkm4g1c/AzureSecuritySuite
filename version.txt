@@ -1,8 +1,14 @@
-__version__ = "1.1.3"
+__version__ = "1.1.4"
 
 
 # Changelog
 # ---------
+# v1.1.4 (6-02-2025)
+# - fixes with being able to run scans due to adding azure CLI scans.
+# - removed debug messages.
+
+
+
 # v1.1.3 (12-01-2025)
 # - Implemented sugestions from Issues/Suggestions #1
 # - Added Azure CLI integration for enhanced scanning capabilities

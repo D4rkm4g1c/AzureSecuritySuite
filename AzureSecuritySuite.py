@@ -556,9 +556,6 @@ def run_all_scans(resource_folders):
             "CosmosDB": "cosmos_databases"
         }
         
-        # Debug: Print current working directory
-        print(f"{Fore.YELLOW}Current working directory: {os.getcwd()}{Style.RESET_ALL}")
-        
         total_scans = 0
         successful_scans = 0
         
@@ -567,18 +564,25 @@ def run_all_scans(resource_folders):
                 print(f"\n{Fore.CYAN}Running {folder_name} scans...{Style.RESET_ALL}")
                 try:
                     scans = load_scan_definitions(yaml_name)
-                    if scans:
-                        total_scans += len(scans)
-                        for scan in scans:
-                            try:
-                                output_path = os.path.join(resource_folders[folder_name], scan['output_file'])
-                                if run_steampipe_query(scan['query'], output_path):
-                                    successful_scans += 1
-                                    print(f"{Fore.GREEN}✓ {scan['name']} completed successfully{Style.RESET_ALL}")
-                                else:
-                                    print(f"{Fore.RED}✗ {scan['name']} failed{Style.RESET_ALL}")
-                            except Exception as e:
-                                print(f"{Fore.RED}Error in {scan['name']}: {str(e)}{Style.RESET_ALL}")
+                    if scans and isinstance(scans, dict):  # Ensure scans is a dictionary
+                        total_scans += len(scans.get('scans', []))
+                        if 'scans' in scans:
+                            for scan in scans['scans']:
+                                try:
+                                    # Access dictionary values using keys
+                                    name = scan.get('name', 'Unnamed scan')
+                                    query = scan.get('query', '')
+                                    output_file = scan.get('output_file', '')
+                                    
+                                    if query and output_file:
+                                        output_path = os.path.join(resource_folders[folder_name], output_file)
+                                        if run_steampipe_query(query, output_path):
+                                            successful_scans += 1
+                                            print(f"{Fore.GREEN}✓ {name} completed successfully{Style.RESET_ALL}")
+                                        else:
+                                            print(f"{Fore.RED}✗ {name} failed{Style.RESET_ALL}")
+                                except Exception as e:
+                                    print(f"{Fore.RED}Error in scan {name}: {str(e)}{Style.RESET_ALL}")
                     else:
                         print(f"{Fore.YELLOW}No scans found for {folder_name} in {yaml_name}.yaml{Style.RESET_ALL}")
                 except Exception as e:
@@ -741,47 +745,36 @@ def _process_scan_results(output_file, scan_name, vuln_overview):
             else:
                 print(f"{Fore.YELLOW}No vulnerable resources found in {output_file}{Style.RESET_ALL}")
 
-def load_scan_definitions(scan_type):
-    """Load scan definitions from YAML files with support for both Steampipe and Azure CLI."""
+def load_scan_definitions(resource_type):
+    """Load scan definitions from YAML file."""
     try:
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        scans_dir = os.path.join(script_dir, 'scans')
-        yaml_file = os.path.join(scans_dir, f'{scan_type.lower()}.yaml')
-        
-        logging.info(f"Loading scan definitions from: {yaml_file}")
+        # Construct path to the YAML file
+        yaml_file = os.path.join('scans', f'{resource_type}.yaml')
         
         if not os.path.exists(yaml_file):
-            logging.error(f"Scan definition file not found: {yaml_file}")
+            print(f"{Fore.YELLOW}No scan definitions found at {yaml_file}{Style.RESET_ALL}")
             return None
             
         with open(yaml_file, 'r') as f:
-            content = f.read()
-            logging.info(f"Raw YAML content length: {len(content)} bytes")
+            scan_data = yaml.safe_load(f)
             
-            scan_data = yaml.safe_load(content)
-            if not scan_data:
-                logging.error("No data loaded from YAML file")
-                return None
-
-            steampipe_scans = scan_data.get('scans', [])
-            cli_scans = scan_data.get('cli_scans', [])
+        if not scan_data or not isinstance(scan_data, dict):
+            print(f"{Fore.YELLOW}Invalid YAML format in {yaml_file}{Style.RESET_ALL}")
+            return None
             
-            logging.info(f"Found {len(steampipe_scans)} Steampipe scans and {len(cli_scans)} CLI scans")
+        # Validate the structure
+        if 'scans' not in scan_data:
+            print(f"{Fore.YELLOW}No 'scans' key found in {yaml_file}{Style.RESET_ALL}")
+            return None
             
-            # Log individual scan names
-            for scan in steampipe_scans:
-                logging.info(f"Steampipe scan found: {scan.get('name')}")
-            for scan in cli_scans:
-                logging.info(f"CLI scan found: {scan.get('name')}")
-
-            return scan_data
-            
-    except yaml.YAMLError as ye:
-        logging.error(f"YAML parsing error: {str(ye)}")
+        # Return the entire scan_data dictionary
+        return scan_data
+        
+    except yaml.YAMLError as e:
+        print(f"{Fore.RED}Error parsing YAML file {yaml_file}: {str(e)}{Style.RESET_ALL}")
         return None
     except Exception as e:
-        logging.error(f"Error loading scan definitions: {str(e)}")
-        logging.error(traceback.format_exc())
+        print(f"{Fore.RED}Error loading scan definitions: {str(e)}{Style.RESET_ALL}")
         return None
 
 def run_cli_query(query, output_file):

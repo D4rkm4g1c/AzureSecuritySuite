@@ -1,6 +1,5 @@
 scans:
-  - name: "Ensure App Service Authentication is set up for apps in Azure
-App Service"
+  - name: "Ensure App Service Authentication is set up for apps in Azure App Service"
     query: >-
       SELECT name
       FROM azure_app_service_web_app
@@ -43,14 +42,14 @@ App Service"
   - name: "HTTP/2 Not Enabled"
     query: >-
       SELECT name
-    FROM azure_app_service_web_app
-    WHERE (configuration -> 'properties' ->> 'http20Enabled')::boolean = false
-      OR (configuration -> 'properties' ->> 'http20Enabled') IS NULL
-    UNION ALL
-    SELECT name
-    FROM azure_app_service_function_app
-    WHERE (configuration -> 'properties' ->> 'http20Enabled')::boolean = false
-      OR (configuration -> 'properties' ->> 'http20Enabled') IS NULL
+      FROM azure_app_service_web_app
+      WHERE (configuration -> 'properties' ->> 'http20Enabled')::boolean = false
+        OR (configuration -> 'properties' ->> 'http20Enabled') IS NULL
+      UNION ALL
+      SELECT name
+      FROM azure_app_service_function_app
+      WHERE (configuration -> 'properties' ->> 'http20Enabled')::boolean = false
+        OR (configuration -> 'properties' ->> 'http20Enabled') IS NULL
     output_file: "web_app_http2.csv"
 
   - name: "FTPS State Insecure"
