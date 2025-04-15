@@ -1,5 +1,5 @@
 scans:
-  - name: "Ensure App Service Authentication is set up for apps in Azure App Service"
+  - name: "Authentication Disabled for Azure Application Service"
     query: >-
       SELECT name
       FROM azure_app_service_web_app
@@ -12,7 +12,7 @@ scans:
         OR (auth_settings -> 'properties' ->> 'enabled') IS NULL
     output_file: "app_auth_settings.csv"
 
-  - name: "HTTPS Only Not Enabled"
+  - name: "No HTTP to HTTPS Redirection"
     query: >-
       SELECT name 
       FROM azure_app_service_web_app 
@@ -26,7 +26,7 @@ scans:
       WHERE NOT app.client_cert_enabled
     output_file: "function_app_client_cert.csv"
 
-  - name: "Ensure that Register with Entra ID is enabled on App Service"
+  - name: "Register with Azure Active Directory Disabled on App Service"
     query: >-
       SELECT name
       FROM azure_app_service_web_app
@@ -52,7 +52,7 @@ scans:
         OR (configuration -> 'properties' ->> 'http20Enabled') IS NULL
     output_file: "web_app_http2.csv"
 
-  - name: "FTPS State Insecure"
+  - name: "FTP Deployment Lacks SFTP Enforcement"
     query: >-
       SELECT name 
       FROM azure_app_service_web_app 
@@ -67,7 +67,7 @@ scans:
       AND sub.subscription_id = app.subscription_id
     output_file: "app_names_no_client_cert.csv"
 
-  - name: "Outdated TLS Version (All Apps)"
+  - name: "App Not Using the Latest Version of TLS Encryption (All Apps)"
     query: >-
       SELECT DISTINCT resource
       FROM (
