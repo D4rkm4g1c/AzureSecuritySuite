@@ -77,8 +77,8 @@ def _get_html_header(subscription_name):
                 line-height: 1.6;
                 margin: 0;
                 padding: 2rem;
-                background: #ffffff;
-                color: #2d3436;
+                background: #f7f9fc;
+                color: #2c3e50;
             }}
             
             /* Container */
@@ -87,25 +87,25 @@ def _get_html_header(subscription_name):
                 margin: 0 auto;
                 background: #ffffff;
                 padding: 2.5rem;
-                border-radius: 16px;
-                box-shadow: 0 4px 6px rgba(176, 211, 81, 0.1);
+                border-radius: 8px;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
             }}
             
             /* Header */
             .report-header {{
                 margin-bottom: 2rem;
                 text-align: center;
-                border-bottom: 2px solid #b0d351;
+                border-bottom: 2px solid #3498db;
                 padding-bottom: 2rem;
             }}
             
             h1, h2, h3, h4 {{
-                color: #2d3436;
+                color: #2c3e50;
                 letter-spacing: -0.5px;
             }}
             
-            h1 {{ font-size: 2.8rem; font-weight: 700; margin: 0 0 1.5rem 0; }}
-            h2 {{ font-size: 1.8rem; font-weight: 600; margin: 2rem 0 1rem; }}
+            h1 {{ font-size: 2.8rem; font-weight: 700; margin: 0 0 1.5rem 0; color: #1e5180; }}
+            h2 {{ font-size: 1.8rem; font-weight: 600; margin: 2rem 0 1rem; color: #1e5180; }}
             h3 {{ font-size: 1.4rem; font-weight: 600; margin: 1.5rem 0 0.75rem; }}
             
             /* Navigation */
@@ -121,9 +121,9 @@ def _get_html_header(subscription_name):
                 font-size: 1.1rem;
                 font-weight: 500;
                 border: none;
-                border-radius: 12px;
-                background: #f8f9fa;
-                color: #2d3436;
+                border-radius: 6px;
+                background: #f1f5f9;
+                color: #2c3e50;
                 cursor: pointer;
                 transition: all 0.3s ease;
                 display: flex;
@@ -132,15 +132,14 @@ def _get_html_header(subscription_name):
             }}
             
             .tab-btn:hover {{
-                background: #b0d351;
-                color: #ffffff;
+                background: #e1eaf1;
                 transform: translateY(-2px);
             }}
             
             .tab-btn.active {{
-                background: #b0d351;
+                background: #3498db;
                 color: #ffffff;
-                box-shadow: 0 4px 12px rgba(176, 211, 81, 0.2);
+                box-shadow: 0 4px 12px rgba(52, 152, 219, 0.2);
             }}
             
             /* Search */
@@ -154,31 +153,40 @@ def _get_html_header(subscription_name):
                 width: 100%;
                 padding: 1.2rem 1.2rem 1.2rem 3.5rem;
                 font-size: 1.1rem;
-                border: 2px solid #b0d351;
-                border-radius: 12px;
+                border: 1px solid #dfe6e9;
+                border-radius: 6px;
                 background: #ffffff;
-                color: #2d3436;
+                color: #2c3e50;
                 transition: all 0.3s ease;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            }}
+            
+            .search-input:focus {{
+                border-color: #3498db;
+                outline: none;
+                box-shadow: 0 1px 3px rgba(52, 152, 219, 0.2);
             }}
             
             /* Findings */
             .finding {{
-                border: 1px solid #b0d351;
+                border: 1px solid #e1eaf1;
                 margin: 1rem 0;
                 padding: 1.5rem;
-                border-radius: 12px;
+                border-radius: 6px;
                 background: #ffffff;
                 transition: all 0.3s ease;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
             }}
             
             .finding:hover {{
-                box-shadow: 0 4px 12px rgba(176, 211, 81, 0.15);
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+                border-color: #3498db;
             }}
             
             .finding-name {{
                 font-size: 1.1rem;
                 font-weight: 600;
-                color: #2d3436;
+                color: #3498db;
                 margin-bottom: 1rem;
             }}
             
@@ -190,17 +198,23 @@ def _get_html_header(subscription_name):
                 margin-bottom: 2rem;
             }}
             
+            .resource-type-header i {{
+                color: #3498db;
+            }}
+            
             .resource-card {{
                 background: #ffffff;
-                border: 1px solid #b0d351;
-                border-radius: 12px;
+                border: 1px solid #e1eaf1;
+                border-radius: 6px;
                 padding: 1.5rem;
                 margin-bottom: 1.5rem;
                 transition: all 0.3s ease;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
             }}
             
             .resource-card:hover {{
-                box-shadow: 0 4px 12px rgba(176, 211, 81, 0.15);
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+                border-color: #3498db;
             }}
             
             .resource-header {{
@@ -209,52 +223,60 @@ def _get_html_header(subscription_name):
                 align-items: center;
                 margin-bottom: 1rem;
                 padding-bottom: 0.5rem;
-                border-bottom: 1px solid rgba(176, 211, 81, 0.2);
+                border-bottom: 1px solid rgba(52, 152, 219, 0.2);
             }}
             
             .finding-count {{
                 font-size: 0.9rem;
-                color: #64748b;
-                background: rgba(176, 211, 81, 0.1);
+                color: #ffffff;
+                background: #3498db;
                 padding: 0.3rem 0.8rem;
                 border-radius: 20px;
             }}
             
             /* Dark Mode */
             body.dark-mode {{
-                background: #444444;
-                color: #ffffff;
+                background: #1e2a3a;
+                color: #f1f5f9;
             }}
             
             .dark-mode .container,
             .dark-mode .resource-card,
             .dark-mode .finding {{
-                background: #444444;
-                border-color: #bcd03e;
+                background: #2c3e50;
+                border-color: #3498db;
             }}
             
             .dark-mode h1, 
             .dark-mode h2, 
             .dark-mode h3, 
-            .dark-mode h4,
+            .dark-mode h4 {{
+                color: #f1f5f9;
+            }}
+            
+            .dark-mode h1,
+            .dark-mode h2 {{
+                color: #3498db;
+            }}
+            
             .dark-mode .finding-name {{
-                color: #ffffff;
+                color: #3498db;
             }}
             
             .dark-mode .search-input {{
-                background: #444444;
-                color: #ffffff;
-                border-color: #bcd03e;
+                background: #2c3e50;
+                color: #f1f5f9;
+                border-color: #4b6584;
             }}
             
             .dark-mode .tab-btn {{
-                background: #555555;
-                color: #ffffff;
+                background: #34495e;
+                color: #f1f5f9;
             }}
             
             .dark-mode .tab-btn.active {{
-                background: #bcd03e;
-                color: #444444;
+                background: #3498db;
+                color: #ffffff;
             }}
             
             /* Theme Toggle */
@@ -267,7 +289,7 @@ def _get_html_header(subscription_name):
             .theme-btn {{
                 background: none;
                 border: none;
-                color: #2d3436;
+                color: #2c3e50;
                 font-size: 1.5rem;
                 cursor: pointer;
                 padding: 0.5rem;
@@ -276,7 +298,7 @@ def _get_html_header(subscription_name):
             }}
             
             .dark-mode .theme-btn {{
-                color: #ffffff;
+                color: #f1f5f9;
             }}
             
             /* Responsive Design */
@@ -292,11 +314,11 @@ def _get_html_header(subscription_name):
             
             /* Executive Summary */
             .executive-summary {{
-                background: #ffffff;
+                background: #f8fafc;
                 padding: 2.5rem;
-                border-radius: 16px;
+                border-radius: 8px;
                 margin: 3rem 0;
-                border: 2px solid #b0d351;
+                border: 1px solid #e1eaf1;
             }}
             
             .summary-grid {{
@@ -309,33 +331,34 @@ def _get_html_header(subscription_name):
             .summary-item {{
                 background: #ffffff;
                 padding: 1.5rem;
-                border-radius: 12px;
+                border-radius: 8px;
                 text-align: center;
-                box-shadow: 0 2px 4px rgba(176, 211, 81, 0.15);
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
                 transition: transform 0.3s ease;
-                border: 1px solid #b0d351;
+                border: 1px solid #e1eaf1;
             }}
             
             .summary-item:hover {{
                 transform: translateY(-4px);
-                box-shadow: 0 4px 12px rgba(176, 211, 81, 0.2);
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+                border-color: #3498db;
             }}
             
             .summary-item .number {{
                 font-size: 2rem;
                 font-weight: 700;
-                color: #b0d351;
+                color: #3498db;
                 margin-top: 0.5rem;
             }}
             
             .dark-mode .executive-summary,
             .dark-mode .summary-item {{
-                background: #444444;
-                border-color: #bcd03e;
+                background: #34495e;
+                border-color: #3498db;
             }}
             
             .dark-mode .summary-item .number {{
-                color: #bcd03e;
+                color: #3498db;
             }}
         </style>
     </head>
