@@ -1,5 +1,5 @@
 scans:
-  - name: "Disabled Server Audit Policies"
+  - name: "SQL Server Auditing Not Enabled:"
     query: >-
       SELECT s.name AS resource 
       FROM azure_sql_server s, 
@@ -7,7 +7,7 @@ scans:
       WHERE audit -> 'properties' ->> 'state' = 'Disabled'
     output_file: "sql_server_audit_disabled.csv"
 
-  - name: "Audit Retention Less Than 90 Days"
+  - name: "SQL Server Audit Retention Set to Less Than 90 Days:"
     query: >-
       SELECT s.name AS resource 
       FROM azure_sql_server s, 
@@ -16,7 +16,7 @@ scans:
       AND (audit -> 'properties' ->> 'retentionDays')::integer != 0
     output_file: "sql_server_audit_retention_less_than_90.csv"
     
-  - name: "Azure AD Authentication Not Enabled"
+  - name: "Microsoft Entra Authentication Not Configured for SQL Servers"
     query: >-
       SELECT a.name
       FROM azure_sql_server AS a
@@ -25,7 +25,7 @@ scans:
          OR jsonb_array_length(a.server_azure_ad_administrator) = 0
     output_file: "sql_server_azure_ad_auth_not_enabled.csv"
 
-  - name: "TDE Protector Not Using Customer-Managed Key"
+  - name: "SQL Server Transparent Data Encryption (TDE) Protector Not Encrypted with Customer-Managed Key:"
     query: >-
       SELECT s.name AS resource 
       FROM azure_sql_server s, 
@@ -35,14 +35,17 @@ scans:
       AND encryption ->> 'kind' = 'servicemanaged'
     output_file: "tde_protector_not_cmk.csv"
 
-  - name: " SQL Public Network Access Enabled"
+  - name: "Azure SQL Database Allowing Ingress from ANY IP"
+    query: >-
+      SELECT s.name AS resource 
+      FROM azure_sql_server s 
+      WHERE firewall_rules @> '[{"properties":{"endIpAddress":"0.0.0.0","startIpAddress":"0.0.0.0"}}]' 
+        OR firewall_rules @> '[{"properties":{"endIpAddress":"255.255.255.255","startIpAddress":"0.0.0.0"}}]'
+    output_file: "sql_server_any_ip_allowed.csv"
+
+  - name: "Azure SQL Database Public Network Access Not Disabled"
     query: >-
       SELECT s.name AS resource 
       FROM azure_sql_server s 
       WHERE public_network_access = 'Enabled'
-      AND (
-        firewall_rules @> '[{"properties":{"endIpAddress":"0.0.0.0","startIpAddress":"0.0.0.0"}}]' 
-        OR firewall_rules @> '[{"properties":{"endIpAddress":"255.255.255.255","startIpAddress":"0.0.0.0"}}]'
-        OR public_network_access = 'Enabled'
-      )
-    output_file: "sql_server_network_security_issues.csv"
+    output_file: "sql_server_public_network_enabled.csv"

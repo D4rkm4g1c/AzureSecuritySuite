@@ -35,3 +35,34 @@ scans:
       AND (config -> 'ConfigurationProperties' ->> 'value')::integer <= 3 
       AND sub.subscription_id = s.subscription_id
     output_file: "logfiles_retention_alarm.csv"
+
+  - name: "Server Parameter 'require_secure_transport' Not Set to 'ON"
+    query: >-
+      WITH ssl_enabled AS (
+        SELECT
+          id
+        FROM
+          azure_postgresql_flexible_server,
+          jsonb_array_elements(flexible_server_configurations) AS config
+        WHERE
+          config ->> 'Name' = 'require_secure_transport'
+          AND config -> 'ConfigurationProperties' ->> 'value' = 'on'
+      )
+      SELECT
+        s.name AS resource
+      FROM
+        azure_postgresql_flexible_server AS s
+        LEFT JOIN ssl_enabled AS a ON s.id = a.id
+      WHERE
+        a.id IS NULL
+    output_file: "ssl_connection_not_enforced.csv"
+
+  - name: "Public Access from Any Azure Service to PostgreSQL Flexible Server Enabled"
+    query: >-
+      SELECT
+        s.name AS resource
+      FROM
+        azure_postgresql_server AS s
+      WHERE
+        s.public_network_access = 'Enabled'
+    output_file: "public_network_access_enabled.csv"
