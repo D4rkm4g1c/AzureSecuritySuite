@@ -1,14 +1,14 @@
-__version__ = "1.1.4"
+__version__ = "2.0.1"
 
 
 # Changelog
 # ---------
+# v2.0.1 (16-04-2025)
+# - changes to the vulnerability and added in new ones
+
 # v2 (15-04-2025)
 # - changes to the report template
 # - changes to the vulnerability names
-
-
-
 
 # v1.1.4 (6-02-2025)
 # - fixes with being able to run scans due to adding azure CLI scans.
