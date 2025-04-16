@@ -86,3 +86,137 @@ scans:
       WHERE tls_version < '1.2'
       ORDER BY resource
     output_file: "all_apps_tls_v1_2.csv"
+
+  - name: "Web Apps Running Outdated PHP Versions"
+    query: >-
+      WITH all_web_app AS (
+        SELECT
+          id
+        FROM
+          azure_app_service_web_app
+        WHERE
+          EXISTS (
+            SELECT
+            FROM
+              unnest(regexp_split_to_array(kind, ',')) elem
+            WHERE
+              elem LIKE 'app%'
+          )
+          AND EXISTS (
+            SELECT
+            FROM
+              unnest(regexp_split_to_array(kind, ',')) elem
+            WHERE
+              elem = 'linux'
+          )
+      )
+      SELECT
+        a.name AS resource
+      FROM
+        azure_app_service_web_app AS a
+        LEFT JOIN all_web_app AS b ON a.id = b.id
+      WHERE
+        b.id IS NOT NULL
+        AND configuration -> 'properties' ->> 'linuxFxVersion' LIKE 'PHP%'
+        AND configuration -> 'properties' ->> 'linuxFxVersion' != 'PHP|8.4'
+    output_file: "linux_web_apps_outdated_php.csv"
+
+  - name: "Apps Running Outdated Java Versions"
+    query: >-
+      WITH all_java_linux_apps AS (
+        SELECT
+          id,
+          name,
+          configuration
+        FROM
+          azure_app_service_web_app
+        WHERE
+          EXISTS (
+            SELECT
+            FROM unnest(regexp_split_to_array(kind, ',')) elem
+            WHERE elem LIKE 'app%'
+          )
+          AND EXISTS (
+            SELECT
+            FROM unnest(regexp_split_to_array(kind, ',')) elem
+            WHERE elem = 'linux'
+          )
+
+        UNION ALL
+
+        SELECT
+          id,
+          name,
+          configuration
+        FROM
+          azure_app_service_function_app
+        WHERE
+          EXISTS (
+            SELECT
+            FROM unnest(regexp_split_to_array(kind, ',')) elem
+            WHERE elem LIKE 'functionapp%'
+          )
+          AND EXISTS (
+            SELECT
+            FROM unnest(regexp_split_to_array(kind, ',')) elem
+            WHERE elem = 'linux'
+          )
+      )
+      SELECT
+        name AS resource
+      FROM
+        all_java_linux_apps
+      WHERE
+        configuration -> 'properties' ->> 'linuxFxVersion' LIKE 'Java%'
+        AND configuration -> 'properties' ->> 'linuxFxVersion' NOT LIKE '%21'
+    output_file: "linux_apps_outdated_java.csv"
+
+  - name: "Apps Running Outdated Python Versions"
+    query: >-
+      WITH all_python_linux_apps AS (
+        SELECT
+          id,
+          name,
+          configuration
+        FROM
+          azure_app_service_web_app
+        WHERE
+          EXISTS (
+            SELECT
+            FROM unnest(regexp_split_to_array(kind, ',')) elem
+            WHERE elem LIKE 'app%'
+          )
+          AND EXISTS (
+            SELECT
+            FROM unnest(regexp_split_to_array(kind, ',')) elem
+            WHERE elem = 'linux'
+          )
+
+        UNION ALL
+
+        SELECT
+          id,
+          name,
+          configuration
+        FROM
+          azure_app_service_function_app
+        WHERE
+          EXISTS (
+            SELECT
+            FROM unnest(regexp_split_to_array(kind, ',')) elem
+            WHERE elem LIKE 'functionapp%'
+          )
+          AND EXISTS (
+            SELECT
+            FROM unnest(regexp_split_to_array(kind, ',')) elem
+            WHERE elem = 'linux'
+          )
+      )
+      SELECT
+        name AS resource
+      FROM
+        all_python_linux_apps
+      WHERE
+        configuration -> 'properties' ->> 'linuxFxVersion' ~* '^python\|'
+        AND configuration -> 'properties' ->> 'linuxFxVersion' != 'Python|3.11'
+    output_file: "linux_apps_outdated_python.csv"
