@@ -1,5 +1,5 @@
 scans:
-  - name: "Unrestricted Inbound/Outbound Rules"
+  - name: "Use of Overly Permissive Rules"
     query: >-
       WITH unrestricted_inbound AS (
         SELECT DISTINCT name AS sg_name 
@@ -43,7 +43,7 @@ scans:
       UNION SELECT sg_name FROM unrestricted_outbound
     output_file: "unrestricted_rules.csv"
 
-  - name: "Clear Text Protocols"
+  - name: "Use of Clear Text Protocols"
     query: >-
       WITH clear_text_protocols AS (
         SELECT DISTINCT 
@@ -80,7 +80,7 @@ scans:
       ORDER BY sg_name, dport
     output_file: "clear_text_protocols.csv"
 
-  - name: "Sensitive Management Ports"
+  - name: "Sensitive Management Ports In Use"
     query: >-
       WITH sensitive_management_ports AS (
         SELECT DISTINCT 

@@ -28,3 +28,40 @@ scans:
       FROM azure_key_vault 
       WHERE diagnostic_settings IS NULL
     output_file: "Lack_Key_Vault_Logging.csv"
+
+      - name: "Key Vault Keys Without Expiration Date"
+    query: >-
+      WITH vault_type AS (
+        SELECT
+          name,
+          enable_rbac_authorization
+        FROM
+          azure_key_vault
+      )
+      SELECT
+        kvk.id AS resource,
+        CASE
+          WHEN vt.name IS NULL THEN 'skip'
+          WHEN enabled AND expires_at IS NULL THEN 'alarm'
+          ELSE 'ok'
+        END AS status,
+        kvk.vault_name || ' key ' || kvk.name || 
+        CASE
+          WHEN vt.name IS NULL THEN ' vault not found.'
+          WHEN vt.enable_rbac_authorization THEN ' (RBAC) '
+          ELSE ' (non-RBAC) '
+        END ||
+        CASE
+          WHEN enabled AND expires_at IS NULL THEN 'expiration date not set.'
+          WHEN NOT enabled THEN 'disabled.'
+          ELSE 'expiration date set to ' || to_char(expires_at, 'DD-Mon-YYYY') || '.'
+        END AS reason,
+        kvk.resource_group AS resource_group,
+        sub.display_name AS subscription
+      FROM
+        azure_key_vault_key kvk
+        LEFT JOIN vault_type vt ON vt.name = kvk.vault_name,
+        azure_subscription sub
+      WHERE
+        sub.subscription_id = kvk.subscription_id
+    output_file: "key_vault_keys_expiration.csv"
