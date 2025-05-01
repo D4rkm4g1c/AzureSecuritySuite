@@ -50,7 +50,11 @@ AzureSecuritySuite/
    ```bash
    pip install -r requirements.txt
    ```
-
+2. **Run the tool**:
+   ```bash
+   python AzureSecuritySuite.py
+   ```
+   
 ## Scan Definitions
 Security checks are defined in YAML files for easy maintenance:
 
