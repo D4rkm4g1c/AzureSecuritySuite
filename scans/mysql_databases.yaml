@@ -10,7 +10,7 @@ scans:
       ) 
       SELECT id 
       FROM tls_version
-    output_file: "tls_noncompliant_servers.csv"
+    output_file: "non_compliant_tls_versions.csv"
 
 - name: "require_secure_transport' is Set to 'ON' for MySQL Flexible Server"
     query: >-
@@ -31,5 +31,5 @@ scans:
         LEFT JOIN ssl_enabled AS a ON s.id = a.id
       WHERE
         a.id IS NULL
-    output_file: "mysql_secure_transport_not_enforced.csv"
+    output_file: "require_secure_transport_is_set_to_on_for_mysql_flexible_server.csv"
 

@@ -41,7 +41,7 @@ scans:
       )
       SELECT sg_name FROM unrestricted_inbound 
       UNION SELECT sg_name FROM unrestricted_outbound
-    output_file: "unrestricted_rules.csv"
+    output_file: "use_of_overly_permissive_rules.csv"
 
   - name: "Use of Clear Text Protocols"
     query: >-
@@ -78,7 +78,7 @@ scans:
       SELECT sg_name || ',' || dport || ',' || service_name as nsg_port_service 
       FROM clear_text_protocols
       ORDER BY sg_name, dport
-    output_file: "clear_text_protocols.csv"
+    output_file: "use_of_clear_text_protocols.csv"
 
   - name: "Sensitive Management Ports In Use"
     query: >-
@@ -132,4 +132,4 @@ scans:
       SELECT sg_name || ',' || dport || ',' || service_name as nsg_port_service
       FROM sensitive_management_ports
       ORDER BY sg_name, dport
-    output_file: "sensitive_management_ports.csv"
+    output_file: "sensitive_management_ports_in_use.csv"

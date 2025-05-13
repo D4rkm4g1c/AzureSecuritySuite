@@ -1,4 +1,3 @@
-
 scans:
   - name: "Public Access"
     query: >-
@@ -6,7 +5,7 @@ scans:
       FROM azure_key_vault a, azure_subscription sub 
       WHERE (network_acls IS NULL OR network_acls ->> 'defaultAction' != 'Deny') 
       AND sub.subscription_id = a.subscription_id
-    output_file: "public_network_enabled.csv"
+    output_file: "public_access.csv"
 
   - name: "Soft Delete"
     query: >-
@@ -20,16 +19,16 @@ scans:
       SELECT name 
       FROM azure_key_vault 
       WHERE purge_protection_enabled IS NOT TRUE
-    output_file: "purge_protection_disabled.csv"
+    output_file: "purge_protection_status.csv"
 
   - name: "Lack of Key Vault Logging"
     query: >-
       SELECT name 
       FROM azure_key_vault 
       WHERE diagnostic_settings IS NULL
-    output_file: "Lack_Key_Vault_Logging.csv"
+    output_file: "lack_of_key_vault_logging.csv"
 
-      - name: "Key Vault Keys Without Expiration Date"
+  - name: "Key Vault Keys Without Expiration Date"
     query: >-
       WITH vault_type AS (
         SELECT
@@ -64,4 +63,4 @@ scans:
         azure_subscription sub
       WHERE
         sub.subscription_id = kvk.subscription_id
-    output_file: "key_vault_keys_expiration.csv"
+    output_file: "key_vault_keys_without_expiration_date.csv"

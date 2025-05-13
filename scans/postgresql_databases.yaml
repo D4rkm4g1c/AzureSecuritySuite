@@ -34,7 +34,7 @@ scans:
       WHERE config ->> 'Name' = 'logfiles.retention_days' 
       AND (config -> 'ConfigurationProperties' ->> 'value')::integer <= 3 
       AND sub.subscription_id = s.subscription_id
-    output_file: "logfiles_retention_alarm.csv"
+    output_file: "log_files_retention_days.csv"
 
   - name: "Server Parameter 'require_secure_transport' Not Set to 'ON"
     query: >-
@@ -55,7 +55,7 @@ scans:
         LEFT JOIN ssl_enabled AS a ON s.id = a.id
       WHERE
         a.id IS NULL
-    output_file: "ssl_connection_not_enforced.csv"
+    output_file: "server_parameter_require_secure_transport_not_set_to_on.csv"
 
   - name: "Public Access from Any Azure Service to PostgreSQL Flexible Server Enabled"
     query: >-
@@ -65,4 +65,4 @@ scans:
         azure_postgresql_server AS s
       WHERE
         s.public_network_access = 'Enabled'
-    output_file: "public_network_access_enabled.csv"
+    output_file: "public_access_from_any_azure_service_to_postgresql_flexible_server_enabled.csv"

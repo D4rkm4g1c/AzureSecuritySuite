@@ -6,7 +6,7 @@ scans:
       azure_subscription AS sub 
       WHERE sub.subscription_id = vm.subscription_id 
       AND managed_disk_id IS NULL
-    output_file: "unmanaged_disks.csv"
+    output_file: "virtual_machines_not_utilising_managed_disks.csv"
 
 
   - name: "Unattached Disks lack Customer Managed Keys"
@@ -17,4 +17,4 @@ scans:
       WHERE disk_state != 'Attached' 
       AND sub.subscription_id = disk.subscription_id 
       AND encryption_type != 'EncryptionAtRestWithCustomerKey'
-    output_file: "Unattached_Disks_lack_CMK.csv"
+    output_file: "unattached_disks_lack_customer_managed_keys.csv"
