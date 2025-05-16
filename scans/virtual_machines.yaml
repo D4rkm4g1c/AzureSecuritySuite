@@ -14,7 +14,7 @@ scans:
       SELECT disk.name 
       FROM azure_compute_disk AS disk, 
       azure_subscription AS sub 
-      WHERE disk_state != 'Attached' 
+      WHERE disk_state = 'unattached' 
       AND sub.subscription_id = disk.subscription_id 
       AND encryption_type != 'EncryptionAtRestWithCustomerKey'
     output_file: "unattached_disks_lack_customer_managed_keys.csv"
