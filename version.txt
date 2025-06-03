@@ -1,8 +1,11 @@
-__version__ = "2.0.3"
+__version__ = "2.0.4"
 
 
 # Changelog
 # ---------
+# v2.0.4 (03-06-2025)
+# file name changes 2.0
+
 # v2.0.3 (13-05-2025)
 # file name changes
 
