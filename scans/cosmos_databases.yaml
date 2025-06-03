@@ -1,10 +1,10 @@
 scans:
-  - name: "No Firewall"
+  - name: "Cosmos No Firewall"
     query: >-
       SELECT name 
       FROM azure_cosmosdb_account 
       WHERE is_virtual_network_filter_enabled = false
-    output_file: "no_firewall.csv"
+    output_file: "cosmos_no_firewall.csv"
 
   - name: "Public Network Access Without VNet Protection"
     query: >-
