@@ -12,7 +12,7 @@ scans:
       FROM tls_version
     output_file: "non_compliant_tls_versions.csv"
 
-- name: "require_secure_transport' is Set to 'ON' for MySQL Flexible Server"
+  - name: "require_secure_transport' is Set to 'ON' for MySQL Flexible Server"
     query: >-
       WITH ssl_enabled AS (
         SELECT

@@ -28,7 +28,7 @@ scans:
       WHERE diagnostic_settings IS NULL
     output_file: "lack_of_key_vault_logging.csv"
 
-      - name: "Key Vault Keys Without Expiration Date"
+  - name: "Key Vault Keys Without Expiration Date"
     query: >-
       WITH vault_type AS (
         SELECT
