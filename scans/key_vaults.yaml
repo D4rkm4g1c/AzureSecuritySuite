@@ -12,14 +12,14 @@ scans:
       SELECT name 
       FROM azure_key_vault 
       WHERE soft_delete_enabled IS NOT TRUE
-    output_file: "soft_delete.csv"
+    output_file: "soft_delete_disabled.csv"
 
   - name: "Purge Protection Status"
     query: >-
       SELECT name 
       FROM azure_key_vault 
       WHERE purge_protection_enabled IS NOT TRUE
-    output_file: "purge_protection_status.csv"
+    output_file: "purge_protection_disabled.csv"
 
   - name: "Lack of Key Vault Logging"
     query: >-

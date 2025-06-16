@@ -19,13 +19,6 @@ scans:
       WHERE NOT https_only
     output_file: "no_http_to_https_redirection.csv"
 
-  - name: "Client Certificates Not Enabled"
-    query: >-
-      SELECT app.name 
-      FROM azure_app_service_function_app AS app 
-      WHERE NOT app.client_cert_enabled
-    output_file: "client_certificates_not_enabled.csv"
-
   - name: "Register with Azure Active Directory Disabled on App Service"
     query: >-
       SELECT name
@@ -50,7 +43,7 @@ scans:
       FROM azure_app_service_function_app
       WHERE (configuration -> 'properties' ->> 'http20Enabled')::boolean = false
         OR (configuration -> 'properties' ->> 'http20Enabled') IS NULL
-    output_file: "http2_not_enabled.csv"
+    output_file: "HTTP2_not_enabled.csv"
 
   - name: "FTP Deployment Lacks SFTP Enforcement"
     query: >-
@@ -59,13 +52,18 @@ scans:
       WHERE configuration -> 'properties' ->> 'ftpsState' = 'AllAllowed'
     output_file: "ftp_deployment_lacks_sftp_enforcement.csv"
 
-  - name: "Client Certificates Not Required"
+  - name: "Client Certificates Not Required (Web & Function Apps)"
     query: >-
-      SELECT app.name AS resource 
-      FROM azure_app_service_web_app AS app, azure_subscription AS sub 
-      WHERE NOT client_cert_enabled 
-      AND sub.subscription_id = app.subscription_id
-    output_file: "client_certificates_not_required.csv"
+      SELECT app.name AS resource
+      FROM azure_app_service_web_app AS app, azure_subscription AS sub
+      WHERE NOT app.client_cert_enabled
+        AND sub.subscription_id = app.subscription_id
+      UNION
+      SELECT app.name AS resource
+      FROM azure_app_service_function_app AS app, azure_subscription AS sub
+      WHERE NOT app.client_cert_enabled
+        AND sub.subscription_id = app.subscription_id
+    output_file: "client_certificates_not_required_web_and_function_apps.csv"
 
   - name: "App Not Using the Latest Version of TLS Encryption (All Apps)"
     query: >-
