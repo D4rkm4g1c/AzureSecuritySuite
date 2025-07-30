@@ -1,8 +1,14 @@
-__version__ = "2.0.9"
+__version__ = "2.0.11"
 
 
 # Changelog
 # ---------
+# v2.0.11 (30-07-2025)
+# BUGS BUGS BUGS 
+
+# v2.0.10 (30-07-2025)
+# BUGS BUGS BUGS 
+
 # v2.0.9 (30-07-2025)
 # Implemented better structure of output for subscriptions + now better html output
 
