@@ -395,7 +395,7 @@ def log_query_execution(query, output_file, success):
     else:
         logging.error(f"Query execution failed: {query}")
 
-def run_steampipe_query(query, output_file):
+def run_steampipe_query(query, output_file, subscription_id=None):
     """Run a Steampipe query and save the output to a file."""
     try:
         # Log the full Steampipe command
@@ -406,6 +406,25 @@ def run_steampipe_query(query, output_file):
             "--output",
             "csv"
         ]
+        
+        # If subscription_id is provided, add it to the query to scope results
+        if subscription_id:
+            # Add subscription_id filter to the query
+            # This is a simple approach that works for most cases
+            if "WHERE" in query.upper():
+                # If there's already a WHERE clause, add AND condition
+                query = query.replace("WHERE", f"WHERE subscription_id = '{subscription_id}' AND")
+            else:
+                # If no WHERE clause, add one
+                query = f"{query} WHERE subscription_id = '{subscription_id}'"
+            
+            # Update the command with the modified query
+            steampipe_cmd[2] = query
+            
+            logging.info(f"Query scoped to subscription: {subscription_id}")
+            print(f"{Fore.CYAN}Scoping query to subscription: {subscription_id}{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}Modified query: {query[:200]}...{Style.RESET_ALL}")
+            
         logging.info(f"Executing Steampipe command: {' '.join(steampipe_cmd)}")
         print(f"\n{Fore.CYAN}Executing query...{Style.RESET_ALL}")
         
@@ -538,10 +557,16 @@ def run_scans(resource_folder, scans, scan_type):
         print(f"{Fore.RED}Error running scans: {str(e)}{Style.RESET_ALL}")
         logging.error(f"Error running scans: {str(e)}")
 
-def run_all_scans(resource_folders):
+def run_all_scans(resource_folders, subscription_id=None):
     """Run all scans for all resource types."""
     try:
         print(f"\n{Fore.CYAN}Running all security scans...{Style.RESET_ALL}")
+        if subscription_id:
+            print(f"{Fore.CYAN}Scoping all scans to subscription: {subscription_id}{Style.RESET_ALL}")
+            logging.info(f"Running all scans scoped to subscription: {subscription_id}")
+        else:
+            print(f"{Fore.YELLOW}Warning: No subscription_id provided, scans may include resources from all subscriptions{Style.RESET_ALL}")
+            logging.warning("No subscription_id provided for scans")
         
         # Map folder names to their corresponding YAML files - exact filename matches
         resource_types = {
@@ -576,7 +601,7 @@ def run_all_scans(resource_folders):
                                     
                                     if query and output_file:
                                         output_path = os.path.join(resource_folders[folder_name], output_file)
-                                        if run_steampipe_query(query, output_path):
+                                        if run_steampipe_query(query, output_path, subscription_id):
                                             successful_scans += 1
                                             print(f"{Fore.GREEN}✓ {name} completed successfully{Style.RESET_ALL}")
                                         else:
@@ -655,10 +680,16 @@ def display_scan_submenu(scans, resource_type):
         logging.error(traceback.format_exc())
         return None
 
-def scan_resource_group(resource_folder: str, scan_type: str) -> None:
+def scan_resource_group(resource_folder: str, scan_type: str, subscription_id: str = None) -> None:
     """Run scans for a resource group using both Steampipe and Azure CLI."""
     try:
         print(f"\n{Fore.CYAN}Scanning resource folder: {resource_folder}{Style.RESET_ALL}")
+        if subscription_id:
+            print(f"{Fore.CYAN}Scoping {scan_type} scans to subscription: {subscription_id}{Style.RESET_ALL}")
+            logging.info(f"Running {scan_type} scans scoped to subscription: {subscription_id}")
+        else:
+            print(f"{Fore.YELLOW}Warning: No subscription_id provided for {scan_type} scans{Style.RESET_ALL}")
+            logging.warning(f"No subscription_id provided for {scan_type} scans")
         
         # Load scan definitions
         all_scans = load_scan_definitions(scan_type)
@@ -700,7 +731,7 @@ def scan_resource_group(resource_folder: str, scan_type: str) -> None:
             for scan in all_scans.get('scans', []):
                 output_file = os.path.join(resource_folder, scan['output_file'])
                 print(f"\nRunning Steampipe scan: {scan['name']}")
-                run_steampipe_query(scan['query'], output_file)
+                run_steampipe_query(scan['query'], output_file, subscription_id)
                 
             # Run all CLI scans
             for scan in all_scans.get('cli_scans', []):
@@ -717,7 +748,7 @@ def scan_resource_group(resource_folder: str, scan_type: str) -> None:
                     scan = all_scans['scans'][scan_index]
                     output_file = os.path.join(resource_folder, scan['output_file'])
                     print(f"\nRunning Steampipe scan: {scan['name']}")
-                    run_steampipe_query(scan['query'], output_file)
+                    run_steampipe_query(scan['query'], output_file, subscription_id)
                 else:  # CLI scan
                     scan = all_scans['cli_scans'][scan_index]
                     output_file = os.path.join(resource_folder, scan['output_file'])
@@ -846,41 +877,41 @@ def run_cli_query(query, output_file):
         logging.error(f"Exception in CLI query: {str(e)}")
         return False
 
-def scan_virtual_machines(resource_folder):
+def scan_virtual_machines(resource_folder, subscription_id=None):
     """Run Steampipe scans for virtual machines."""
-    scan_resource_group(resource_folder, 'virtual_machines')
+    scan_resource_group(resource_folder, 'virtual_machines', subscription_id)
 
-def scan_storage_accounts(resource_folder):
+def scan_storage_accounts(resource_folder, subscription_id=None):
     """Run Steampipe scans for storage accounts."""
-    scan_resource_group(resource_folder, 'storage_accounts')
+    scan_resource_group(resource_folder, 'storage_accounts', subscription_id)
 
-def scan_network_security_groups(resource_folder):
+def scan_network_security_groups(resource_folder, subscription_id=None):
     """Run Steampipe scans for network security groups."""
-    scan_resource_group(resource_folder, 'network_security_groups')
+    scan_resource_group(resource_folder, 'network_security_groups', subscription_id)
 
-def scan_sql_databases(resource_folder):
+def scan_sql_databases(resource_folder, subscription_id=None):
     """Run Steampipe scans for SQL databases."""
-    scan_resource_group(resource_folder, 'sql_databases')
+    scan_resource_group(resource_folder, 'sql_databases', subscription_id)
 
-def scan_key_vaults(resource_folder):
+def scan_key_vaults(resource_folder, subscription_id=None):
     """Run Steampipe scans for key vaults."""
-    scan_resource_group(resource_folder, 'key_vaults')
+    scan_resource_group(resource_folder, 'key_vaults', subscription_id)
 
-def scan_postgresql_databases(resource_folder):
+def scan_postgresql_databases(resource_folder, subscription_id=None):
     """Run Steampipe scans for PostgreSQL databases."""
-    scan_resource_group(resource_folder, 'postgresql_databases')
+    scan_resource_group(resource_folder, 'postgresql_databases', subscription_id)
 
-def scan_mysql_databases(resource_folder):
+def scan_mysql_databases(resource_folder, subscription_id=None):
     """Run Steampipe scans for MySQL databases."""
-    scan_resource_group(resource_folder, 'mysql_databases')
+    scan_resource_group(resource_folder, 'mysql_databases', subscription_id)
 
-def scan_app_services(resource_folder):
+def scan_app_services(resource_folder, subscription_id=None):
     """Run Steampipe scans for app services."""
-    scan_resource_group(resource_folder, 'app_services')
+    scan_resource_group(resource_folder, 'app_services', subscription_id)
 
-def scan_cosmos_db(resource_folder):
+def scan_cosmos_db(resource_folder, subscription_id=None):
     """Run Steampipe scans for Cosmos DB."""
-    scan_resource_group(resource_folder, 'cosmos_databases')
+    scan_resource_group(resource_folder, 'cosmos_databases', subscription_id)
 
 def get_finding_details(finding_type: str) -> Dict:
     """Get details for a specific finding type from configuration."""
@@ -913,7 +944,7 @@ def get_finding_details(finding_type: str) -> Dict:
         ]
     }
 
-def main_menu(resource_folders):
+def main_menu(resource_folders, subscription_id=None):
     """Interactive menu for running scans."""
     # Get tenant name directly from the first resource folder path
     first_folder = next(iter(resource_folders.values()))
@@ -955,9 +986,9 @@ def main_menu(resource_folders):
                 if func:
                     try:
                         if resource_type == "All":
-                            func(resource_folders)
+                            func(resource_folders, subscription_id)
                         elif resource_type:
-                            func(resource_folders[resource_type])
+                            func(resource_folders[resource_type], subscription_id)
                         else:
                             func()
                         input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
@@ -1032,6 +1063,7 @@ def initial_menu(update_needed=False, latest_version=None):
     """Initial setup menu for Azure operations."""
     resource_folders = None
     logging_configured = False
+    subscription_id = None
     
     while True:
         try:
@@ -1154,7 +1186,7 @@ def initial_menu(update_needed=False, latest_version=None):
                     print(f"{Fore.RED}Logging not configured. Please select a subscription first.{Style.RESET_ALL}")
                     input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
                     continue
-                main_menu(resource_folders)
+                main_menu(resource_folders, subscription_id)
                 
             elif choice == 5:  # Exit
                 if logging_configured:
