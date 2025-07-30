@@ -29,7 +29,7 @@ scans:
     query: >-
       SELECT s.name AS resource 
       FROM azure_sql_server s, 
-      jsonb_array_elements(s.encryption_protector) encryption, 
+      jsonb_array_elements(encryption_protector) encryption, 
       azure_subscription sub 
       WHERE sub.subscription_id = s.subscription_id 
       AND encryption ->> 'kind' = 'servicemanaged'
@@ -39,13 +39,13 @@ scans:
     query: >-
       SELECT s.name AS resource 
       FROM azure_sql_server s 
-      WHERE s.firewall_rules @> '[{"properties":{"endIpAddress":"0.0.0.0","startIpAddress":"0.0.0.0"}}]' 
-        OR s.firewall_rules @> '[{"properties":{"endIpAddress":"255.255.255.255","startIpAddress":"0.0.0.0"}}]'
+      WHERE firewall_rules @> '[{"properties":{"endIpAddress":"0.0.0.0","startIpAddress":"0.0.0.0"}}]' 
+        OR firewall_rules @> '[{"properties":{"endIpAddress":"255.255.255.255","startIpAddress":"0.0.0.0"}}]'
     output_file: "azure_sql_database_allowing_ingress_from_any_ip.csv"
 
   - name: "Azure SQL Database Public Network Access Not Disabled"
     query: >-
       SELECT s.name AS resource 
       FROM azure_sql_server s 
-      WHERE s.public_network_access = 'Enabled'
+      WHERE public_network_access = 'Enabled'
     output_file: "azure_sql_database_public_network_access_not_disabled.csv"

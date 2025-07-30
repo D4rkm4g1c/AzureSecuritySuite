@@ -5,17 +5,6 @@ from html import escape
 from datetime import datetime
 from colorama import Fore, Style
 
-def _extract_subscription_info(subscription_name):
-    """Extract clean subscription name and ID from folder name"""
-    if "(" in subscription_name and ")" in subscription_name:
-        subscription_id = subscription_name.split("(")[1].split(")")[0]
-        display_name = subscription_name.split(" (")[0]
-    else:
-        display_name = subscription_name
-        subscription_id = ""
-    
-    return display_name, subscription_id
-
 def generate_html_report(tenant_name):
     """Generate a simplified HTML report for all scan results"""
     try:
@@ -32,7 +21,6 @@ def generate_html_report(tenant_name):
                 continue
                 
             subscription_name = subscription_dir.name
-            display_name, subscription_id = _extract_subscription_info(subscription_name)
             findings_by_type = {}
             
             # Process each resource type directory
@@ -59,9 +47,9 @@ def generate_html_report(tenant_name):
                     findings_by_type[resource_type] = findings
 
             if findings_by_type:
-                _create_html_report(subscription_dir, display_name, findings_by_type, subscription_id)
+                _create_html_report(subscription_dir, subscription_name, findings_by_type)
             else:
-                print(f"{Fore.YELLOW}No findings for {display_name}{Style.RESET_ALL}")
+                print(f"{Fore.YELLOW}No findings for {subscription_name}{Style.RESET_ALL}")
 
         return True
         
@@ -70,20 +58,16 @@ def generate_html_report(tenant_name):
         logging.error(f"Error generating HTML report: {str(e)}")
         return False
 
-def _get_html_header(subscription_name, subscription_id=""):
+def _get_html_header(subscription_name):
     """Return the HTML header with styling"""
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    
-    # Use the provided subscription_id and subscription_name
-    display_name = subscription_name
-    
     return f"""
     <!DOCTYPE html>
     <html lang="en">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Security Assessment Report - {escape(display_name)}</title>
+        <title>Security Assessment Report</title>
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
         
         <style>
@@ -123,45 +107,6 @@ def _get_html_header(subscription_name, subscription_id=""):
             h1 {{ font-size: 2.8rem; font-weight: 700; margin: 0 0 1.5rem 0; color: #1e5180; }}
             h2 {{ font-size: 1.8rem; font-weight: 600; margin: 2rem 0 1rem; color: #1e5180; }}
             h3 {{ font-size: 1.4rem; font-weight: 600; margin: 1.5rem 0 0.75rem; }}
-            
-            /* Subscription Info */
-            .subscription-info {{
-                background: #f8fafc;
-                padding: 1.5rem;
-                border-radius: 8px;
-                margin: 2rem 0;
-                border-left: 4px solid #3498db;
-            }}
-            
-            .subscription-name {{
-                font-size: 1.3rem;
-                font-weight: 600;
-                color: #1e5180;
-                margin-bottom: 0.5rem;
-            }}
-            
-            .subscription-id {{
-                font-family: 'Courier New', monospace;
-                background: #e1eaf1;
-                padding: 0.3rem 0.6rem;
-                border-radius: 4px;
-                font-size: 0.9rem;
-                color: #2c3e50;
-            }}
-            
-            .scope-notice {{
-                background: #e8f5e8;
-                border: 1px solid #b0d351;
-                padding: 1rem;
-                border-radius: 6px;
-                margin: 1rem 0;
-                color: #2c3e50;
-            }}
-            
-            .scope-notice i {{
-                color: #b0d351;
-                margin-right: 0.5rem;
-            }}
             
             /* Navigation */
             .navigation-tabs {{
@@ -334,22 +279,6 @@ def _get_html_header(subscription_name, subscription_id=""):
                 color: #ffffff;
             }}
             
-            .dark-mode .subscription-info {{
-                background: #34495e;
-                border-color: #3498db;
-            }}
-            
-            .dark-mode .subscription-id {{
-                background: #2c3e50;
-                color: #f1f5f9;
-            }}
-            
-            .dark-mode .scope-notice {{
-                background: #2c3e50;
-                border-color: #b0d351;
-                color: #f1f5f9;
-            }}
-            
             /* Theme Toggle */
             .theme-toggle {{
                 position: fixed;
@@ -443,16 +372,7 @@ def _get_html_header(subscription_name, subscription_id=""):
             <div class="report-header">
                 <div class="header-content">
                     <h1>Security Assessment Report</h1>
-                    <div class="subscription-info">
-                        <div class="subscription-name">
-                            <i class="fas fa-cloud"></i> {escape(display_name)}
-                        </div>
-                        {f'<div class="subscription-id"><i class="fas fa-key"></i> {escape(subscription_id)}</div>' if subscription_id else ''}
-                    </div>
-                    <div class="scope-notice">
-                        <i class="fas fa-shield-alt"></i>
-                        <strong>Subscription-Scoped Results:</strong> This report contains security findings only for the selected Azure subscription. All resources shown belong to this specific subscription.
-                    </div>
+                    <div class="subtitle">{escape(subscription_name)}</div>
                     <div class="subtitle">
                         <i class="far fa-calendar-alt"></i> 
                         Generated: {current_time}
@@ -476,46 +396,23 @@ def _get_html_header(subscription_name, subscription_id=""):
             </div>
     """
 
-def _get_executive_summary(total_findings, affected_resource_types, affected_resources, subscription_name):
+def _get_executive_summary(total_findings, affected_resource_types, affected_resources):
     """Return the executive summary HTML"""
     return f"""
         <div class="executive-summary">
             <h2>Executive Summary</h2>
-            <p style="margin-bottom: 2rem; color: #666; font-style: italic;">
-                <i class="fas fa-info-circle"></i> 
-                This report provides a comprehensive security assessment for the <strong>{escape(subscription_name)}</strong> subscription. 
-                All findings and resources shown are specific to this subscription only.
-            </p>
             <div class="summary-grid">
                 <div class="summary-item">
-                    <h3>Total Security Findings</h3>
+                    <h3>Total Findings</h3>
                     <div class="number">{total_findings}</div>
-                    <p style="font-size: 0.9rem; color: #666; margin-top: 0.5rem;">
-                        Unique security issues identified
-                    </p>
                 </div>
                 <div class="summary-item">
                     <h3>Resource Types Affected</h3>
                     <div class="number">{affected_resource_types}</div>
-                    <p style="font-size: 0.9rem; color: #666; margin-top: 0.5rem;">
-                        Different Azure service types with issues
-                    </p>
                 </div>
                 <div class="summary-item">
                     <h3>Resources Affected</h3>
                     <div class="number">{affected_resources}</div>
-                    <p style="font-size: 0.9rem; color: #666; margin-top: 0.5rem;">
-                        Individual resources requiring attention
-                    </p>
-                </div>
-                <div class="summary-item">
-                    <h3>Assessment Scope</h3>
-                    <div class="number" style="font-size: 1.5rem; color: #b0d351;">
-                        <i class="fas fa-check-circle"></i>
-                    </div>
-                    <p style="font-size: 0.9rem; color: #666; margin-top: 0.5rem;">
-                        Subscription-specific analysis
-                    </p>
                 </div>
             </div>
         </div>
@@ -619,7 +516,7 @@ def _get_resource_icon(resource_type):
     }
     return icon_map.get(resource_type, 'fa-cube')
 
-def _create_html_report(subscription_dir, subscription_name, findings_by_type, subscription_id):
+def _create_html_report(subscription_dir, subscription_name, findings_by_type):
     """Create the HTML report for a subscription"""
     try:
         report_file = subscription_dir / 'security_report.html'
@@ -636,15 +533,14 @@ def _create_html_report(subscription_dir, subscription_name, findings_by_type, s
                     affected_resources.update(resources)
         
         with open(report_file, 'w', encoding='utf-8') as f:
-            # Write HTML header with subscription info
-            f.write(_get_html_header(subscription_name, subscription_id))
+            # Write HTML header
+            f.write(_get_html_header(subscription_name))
             
-            # Write executive summary with subscription context
+            # Write executive summary with three statistics
             f.write(_get_executive_summary(
                 total_findings,
                 affected_resource_types,
-                len(affected_resources),
-                subscription_name
+                len(affected_resources)
             ))
             
             # Write vulnerability view

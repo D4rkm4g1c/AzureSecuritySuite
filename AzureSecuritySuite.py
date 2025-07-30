@@ -7,7 +7,6 @@ import time
 import json
 import sys
 import argparse
-import re
 from colorama import init, Fore, Style
 import logging
 from datetime import datetime
@@ -396,18 +395,7 @@ def log_query_execution(query, output_file, success):
     else:
         logging.error(f"Query execution failed: {query}")
 
-def has_subscription_id_column(table_name):
-    """Check if a table is known to have a subscription_id column."""
-    # Tables that don't have subscription_id column
-    tables_without_subscription_id = [
-        'azure_app_service_web_app',
-        'azure_app_service_function_app',
-        'azure_key_vault_key',  # Uses vault_name instead
-    ]
-    
-    return table_name.lower() not in [t.lower() for t in tables_without_subscription_id]
-
-def run_steampipe_query(query, output_file, subscription_id=None):
+def run_steampipe_query(query, output_file):
     """Run a Steampipe query and save the output to a file."""
     try:
         # Log the full Steampipe command
@@ -418,145 +406,6 @@ def run_steampipe_query(query, output_file, subscription_id=None):
             "--output",
             "csv"
         ]
-        
-        # If subscription_id is provided, add it to the query to scope results
-        if subscription_id:
-            # Add subscription_id filter to the query
-            # This is a more intelligent approach that handles table aliases and complex queries
-            if "WHERE" in query.upper():
-                # If there's already a WHERE clause, add AND condition
-                # Try to determine the main table alias from the query
-                main_table_alias = None
-                
-                # Look for common table patterns in the query
-                if "FROM azure_" in query.upper():
-                    # Extract the main table name and alias
-                    from_match = re.search(r'FROM\s+(\w+)\s+(?:AS\s+)?(\w+)', query, re.IGNORECASE)
-                    if from_match:
-                        table_name = from_match.group(1)
-                        table_alias = from_match.group(2)
-                        main_table_alias = table_alias
-                    else:
-                        # Fallback to table name without alias
-                        from_match = re.search(r'FROM\s+(\w+)', query, re.IGNORECASE)
-                        if from_match:
-                            main_table_alias = from_match.group(1)
-                
-                # For CTEs and complex queries, try to find the main table
-                if not main_table_alias and "WITH" in query.upper():
-                    # Look for the final SELECT statement in CTEs
-                    final_select_match = re.search(r'SELECT.*FROM\s+(\w+)\s+(?:AS\s+)?(\w+)', query, re.IGNORECASE | re.DOTALL)
-                    if final_select_match:
-                        table_name = final_select_match.group(1)
-                        table_alias = final_select_match.group(2)
-                        main_table_alias = table_alias
-                
-                # Handle cases where we have multiple tables with subscription_id
-                # For queries that join multiple tables, we need to be more careful
-                if "azure_subscription" in query.lower() and "azure_key_vault" in query.lower():
-                    # For key vault queries that join with subscription table
-                    main_table_alias = "a"  # Use the alias from the key vault table
-                elif "azure_subscription" in query.lower() and "azure_compute" in query.lower():
-                    # For compute queries that join with subscription table
-                    if "azure_compute_disk" in query.lower():
-                        main_table_alias = "disk"  # Use the alias from the disk table
-                    else:
-                        main_table_alias = "vm"  # Use the alias from the virtual machine table
-                
-                if main_table_alias:
-                    # Check if this is a table that might not have subscription_id
-                    # Extract the table name from the alias
-                    table_name = None
-                    for table in ['azure_app_service_web_app', 'azure_app_service_function_app', 'azure_key_vault', 'azure_compute_virtual_machine', 'azure_compute_disk', 'azure_sql_server', 'azure_postgresql_flexible_server']:
-                        if table.lower() in query.lower():
-                            table_name = table
-                            break
-                    
-                    # Check if the query already has explicit subscription_id references
-                    if ("sub.subscription_id" in query and "=" in query) or ("vm.subscription_id" in query and "=" in query) or ("disk.subscription_id" in query and "=" in query) or ("s.subscription_id" in query and "=" in query) or ("a.subscription_id" in query and "=" in query):
-                        logging.info(f"Query already has explicit subscription_id references, skipping automatic filter")
-                    elif table_name and not has_subscription_id_column(table_name):
-                        logging.info(f"Skipping subscription_id filter for {table_name} as it doesn't have subscription_id column")
-                    elif "WITH" in query.upper() and ("azure_app_service" in query.lower()):
-                        # CTEs with app service tables often don't have subscription_id
-                        logging.info(f"Skipping subscription_id filter for CTE with app service tables")
-                    elif "azure_app_service_web_app" in query.lower() or "azure_app_service_function_app" in query.lower():
-                        # App service tables don't have subscription_id column
-                        logging.info(f"Skipping subscription_id filter for app service tables as they don't have subscription_id column")
-                    else:
-                        query = query.replace("WHERE", f"WHERE {main_table_alias}.subscription_id = '{subscription_id}' AND")
-                else:
-                    # Fallback to simple approach
-                    query = query.replace("WHERE", f"WHERE subscription_id = '{subscription_id}' AND")
-            else:
-                # If no WHERE clause, add one
-                # Try to determine the main table alias
-                main_table_alias = None
-                from_match = re.search(r'FROM\s+(\w+)\s+(?:AS\s+)?(\w+)', query, re.IGNORECASE)
-                if from_match:
-                    table_name = from_match.group(1)
-                    table_alias = from_match.group(2)
-                    main_table_alias = table_alias
-                else:
-                    from_match = re.search(r'FROM\s+(\w+)', query, re.IGNORECASE)
-                    if from_match:
-                        main_table_alias = from_match.group(1)
-                
-                # For CTEs and complex queries
-                if not main_table_alias and "WITH" in query.upper():
-                    final_select_match = re.search(r'SELECT.*FROM\s+(\w+)\s+(?:AS\s+)?(\w+)', query, re.IGNORECASE | re.DOTALL)
-                    if final_select_match:
-                        table_name = final_select_match.group(1)
-                        table_alias = final_select_match.group(2)
-                        main_table_alias = table_alias
-                
-                # Handle cases where we have multiple tables with subscription_id
-                if "azure_subscription" in query.lower() and "azure_key_vault" in query.lower():
-                    main_table_alias = "a"  # Use the alias from the key vault table
-                elif "azure_subscription" in query.lower() and "azure_compute" in query.lower():
-                    if "azure_compute_disk" in query.lower():
-                        main_table_alias = "disk"  # Use the alias from the disk table
-                    else:
-                        main_table_alias = "vm"  # Use the alias from the virtual machine table
-                elif "azure_subscription" in query.lower() and "azure_sql" in query.lower():
-                    # For SQL server queries that join with subscription table
-                    main_table_alias = "s"  # Use the alias from the SQL server table
-                elif "azure_subscription" in query.lower() and "azure_postgresql" in query.lower():
-                    # For PostgreSQL queries that join with subscription table
-                    main_table_alias = "s"  # Use the alias from the PostgreSQL table
-                
-                if main_table_alias:
-                    # Check if this is a table that might not have subscription_id
-                    # Extract the table name from the alias
-                    table_name = None
-                    for table in ['azure_app_service_web_app', 'azure_app_service_function_app', 'azure_key_vault', 'azure_compute_virtual_machine', 'azure_compute_disk', 'azure_sql_server', 'azure_postgresql_flexible_server']:
-                        if table.lower() in query.lower():
-                            table_name = table
-                            break
-                    
-                    # Check if the query already has explicit subscription_id references
-                    if ("sub.subscription_id" in query and "=" in query) or ("vm.subscription_id" in query and "=" in query) or ("disk.subscription_id" in query and "=" in query) or ("s.subscription_id" in query and "=" in query) or ("a.subscription_id" in query and "=" in query):
-                        logging.info(f"Query already has explicit subscription_id references, skipping automatic filter")
-                    elif table_name and not has_subscription_id_column(table_name):
-                        logging.info(f"Skipping subscription_id filter for {table_name} as it doesn't have subscription_id column")
-                    elif "WITH" in query.upper() and ("azure_app_service" in query.lower()):
-                        # CTEs with app service tables often don't have subscription_id
-                        logging.info(f"Skipping subscription_id filter for CTE with app service tables")
-                    elif "azure_app_service_web_app" in query.lower() or "azure_app_service_function_app" in query.lower():
-                        # App service tables don't have subscription_id column
-                        logging.info(f"Skipping subscription_id filter for app service tables as they don't have subscription_id column")
-                    else:
-                        query = f"{query} WHERE {main_table_alias}.subscription_id = '{subscription_id}'"
-                else:
-                    query = f"{query} WHERE subscription_id = '{subscription_id}'"
-            
-            # Update the command with the modified query
-            steampipe_cmd[2] = query
-            
-            logging.info(f"Query scoped to subscription: {subscription_id}")
-            print(f"{Fore.CYAN}Scoping query to subscription: {subscription_id}{Style.RESET_ALL}")
-            print(f"{Fore.CYAN}Modified query: {query[:200]}...{Style.RESET_ALL}")
-            
         logging.info(f"Executing Steampipe command: {' '.join(steampipe_cmd)}")
         print(f"\n{Fore.CYAN}Executing query...{Style.RESET_ALL}")
         
@@ -591,13 +440,6 @@ def run_steampipe_query(query, output_file, subscription_id=None):
     except subprocess.CalledProcessError as e:
         print(f"{Fore.RED}✗ Query execution failed: {e.stderr}{Style.RESET_ALL}")
         logging.error(f"Query execution failed with error: {e.stderr}")
-        
-        # Check for specific error types and provide helpful messages
-        if "column reference" in str(e.stderr).lower() and "ambiguous" in str(e.stderr).lower():
-            print(f"{Fore.YELLOW}Hint: This query has ambiguous column references. Consider using table aliases.{Style.RESET_ALL}")
-        elif "column" in str(e.stderr).lower() and "does not exist" in str(e.stderr).lower():
-            print(f"{Fore.YELLOW}Hint: This table might not have the expected columns. Check the table schema.{Style.RESET_ALL}")
-        
         return False
     except Exception as e:
         print(f"{Fore.RED}✗ Error: {str(e)}{Style.RESET_ALL}")
@@ -696,16 +538,10 @@ def run_scans(resource_folder, scans, scan_type):
         print(f"{Fore.RED}Error running scans: {str(e)}{Style.RESET_ALL}")
         logging.error(f"Error running scans: {str(e)}")
 
-def run_all_scans(resource_folders, subscription_id=None):
+def run_all_scans(resource_folders):
     """Run all scans for all resource types."""
     try:
         print(f"\n{Fore.CYAN}Running all security scans...{Style.RESET_ALL}")
-        if subscription_id:
-            print(f"{Fore.CYAN}Scoping all scans to subscription: {subscription_id}{Style.RESET_ALL}")
-            logging.info(f"Running all scans scoped to subscription: {subscription_id}")
-        else:
-            print(f"{Fore.YELLOW}Warning: No subscription_id provided, scans may include resources from all subscriptions{Style.RESET_ALL}")
-            logging.warning("No subscription_id provided for scans")
         
         # Map folder names to their corresponding YAML files - exact filename matches
         resource_types = {
@@ -740,7 +576,7 @@ def run_all_scans(resource_folders, subscription_id=None):
                                     
                                     if query and output_file:
                                         output_path = os.path.join(resource_folders[folder_name], output_file)
-                                        if run_steampipe_query(query, output_path, subscription_id):
+                                        if run_steampipe_query(query, output_path):
                                             successful_scans += 1
                                             print(f"{Fore.GREEN}✓ {name} completed successfully{Style.RESET_ALL}")
                                         else:
@@ -819,16 +655,10 @@ def display_scan_submenu(scans, resource_type):
         logging.error(traceback.format_exc())
         return None
 
-def scan_resource_group(resource_folder: str, scan_type: str, subscription_id: str = None) -> None:
+def scan_resource_group(resource_folder: str, scan_type: str) -> None:
     """Run scans for a resource group using both Steampipe and Azure CLI."""
     try:
         print(f"\n{Fore.CYAN}Scanning resource folder: {resource_folder}{Style.RESET_ALL}")
-        if subscription_id:
-            print(f"{Fore.CYAN}Scoping {scan_type} scans to subscription: {subscription_id}{Style.RESET_ALL}")
-            logging.info(f"Running {scan_type} scans scoped to subscription: {subscription_id}")
-        else:
-            print(f"{Fore.YELLOW}Warning: No subscription_id provided for {scan_type} scans{Style.RESET_ALL}")
-            logging.warning(f"No subscription_id provided for {scan_type} scans")
         
         # Load scan definitions
         all_scans = load_scan_definitions(scan_type)
@@ -870,7 +700,7 @@ def scan_resource_group(resource_folder: str, scan_type: str, subscription_id: s
             for scan in all_scans.get('scans', []):
                 output_file = os.path.join(resource_folder, scan['output_file'])
                 print(f"\nRunning Steampipe scan: {scan['name']}")
-                run_steampipe_query(scan['query'], output_file, subscription_id)
+                run_steampipe_query(scan['query'], output_file)
                 
             # Run all CLI scans
             for scan in all_scans.get('cli_scans', []):
@@ -887,7 +717,7 @@ def scan_resource_group(resource_folder: str, scan_type: str, subscription_id: s
                     scan = all_scans['scans'][scan_index]
                     output_file = os.path.join(resource_folder, scan['output_file'])
                     print(f"\nRunning Steampipe scan: {scan['name']}")
-                    run_steampipe_query(scan['query'], output_file, subscription_id)
+                    run_steampipe_query(scan['query'], output_file)
                 else:  # CLI scan
                     scan = all_scans['cli_scans'][scan_index]
                     output_file = os.path.join(resource_folder, scan['output_file'])
@@ -1016,41 +846,41 @@ def run_cli_query(query, output_file):
         logging.error(f"Exception in CLI query: {str(e)}")
         return False
 
-def scan_virtual_machines(resource_folder, subscription_id=None):
+def scan_virtual_machines(resource_folder):
     """Run Steampipe scans for virtual machines."""
-    scan_resource_group(resource_folder, 'virtual_machines', subscription_id)
+    scan_resource_group(resource_folder, 'virtual_machines')
 
-def scan_storage_accounts(resource_folder, subscription_id=None):
+def scan_storage_accounts(resource_folder):
     """Run Steampipe scans for storage accounts."""
-    scan_resource_group(resource_folder, 'storage_accounts', subscription_id)
+    scan_resource_group(resource_folder, 'storage_accounts')
 
-def scan_network_security_groups(resource_folder, subscription_id=None):
+def scan_network_security_groups(resource_folder):
     """Run Steampipe scans for network security groups."""
-    scan_resource_group(resource_folder, 'network_security_groups', subscription_id)
+    scan_resource_group(resource_folder, 'network_security_groups')
 
-def scan_sql_databases(resource_folder, subscription_id=None):
+def scan_sql_databases(resource_folder):
     """Run Steampipe scans for SQL databases."""
-    scan_resource_group(resource_folder, 'sql_databases', subscription_id)
+    scan_resource_group(resource_folder, 'sql_databases')
 
-def scan_key_vaults(resource_folder, subscription_id=None):
+def scan_key_vaults(resource_folder):
     """Run Steampipe scans for key vaults."""
-    scan_resource_group(resource_folder, 'key_vaults', subscription_id)
+    scan_resource_group(resource_folder, 'key_vaults')
 
-def scan_postgresql_databases(resource_folder, subscription_id=None):
+def scan_postgresql_databases(resource_folder):
     """Run Steampipe scans for PostgreSQL databases."""
-    scan_resource_group(resource_folder, 'postgresql_databases', subscription_id)
+    scan_resource_group(resource_folder, 'postgresql_databases')
 
-def scan_mysql_databases(resource_folder, subscription_id=None):
+def scan_mysql_databases(resource_folder):
     """Run Steampipe scans for MySQL databases."""
-    scan_resource_group(resource_folder, 'mysql_databases', subscription_id)
+    scan_resource_group(resource_folder, 'mysql_databases')
 
-def scan_app_services(resource_folder, subscription_id=None):
+def scan_app_services(resource_folder):
     """Run Steampipe scans for app services."""
-    scan_resource_group(resource_folder, 'app_services', subscription_id)
+    scan_resource_group(resource_folder, 'app_services')
 
-def scan_cosmos_db(resource_folder, subscription_id=None):
+def scan_cosmos_db(resource_folder):
     """Run Steampipe scans for Cosmos DB."""
-    scan_resource_group(resource_folder, 'cosmos_databases', subscription_id)
+    scan_resource_group(resource_folder, 'cosmos_databases')
 
 def get_finding_details(finding_type: str) -> Dict:
     """Get details for a specific finding type from configuration."""
@@ -1083,7 +913,7 @@ def get_finding_details(finding_type: str) -> Dict:
         ]
     }
 
-def main_menu(resource_folders, subscription_id=None):
+def main_menu(resource_folders):
     """Interactive menu for running scans."""
     # Get tenant name directly from the first resource folder path
     first_folder = next(iter(resource_folders.values()))
@@ -1125,9 +955,9 @@ def main_menu(resource_folders, subscription_id=None):
                 if func:
                     try:
                         if resource_type == "All":
-                            func(resource_folders, subscription_id)
+                            func(resource_folders)
                         elif resource_type:
-                            func(resource_folders[resource_type], subscription_id)
+                            func(resource_folders[resource_type])
                         else:
                             func()
                         input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
@@ -1202,7 +1032,6 @@ def initial_menu(update_needed=False, latest_version=None):
     """Initial setup menu for Azure operations."""
     resource_folders = None
     logging_configured = False
-    subscription_id = None
     
     while True:
         try:
@@ -1325,7 +1154,7 @@ def initial_menu(update_needed=False, latest_version=None):
                     print(f"{Fore.RED}Logging not configured. Please select a subscription first.{Style.RESET_ALL}")
                     input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
                     continue
-                main_menu(resource_folders, subscription_id)
+                main_menu(resource_folders)
                 
             elif choice == 5:  # Exit
                 if logging_configured:

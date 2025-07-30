@@ -29,7 +29,7 @@ scans:
     query: >-
       SELECT s.id AS resource 
       FROM azure_postgresql_flexible_server s, 
-      jsonb_array_elements(s.flexible_server_configurations) AS config, 
+      jsonb_array_elements(flexible_server_configurations) AS config, 
       azure_subscription sub 
       WHERE config ->> 'Name' = 'logfiles.retention_days' 
       AND (config -> 'ConfigurationProperties' ->> 'value')::integer <= 3 

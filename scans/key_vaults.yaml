@@ -3,7 +3,7 @@ scans:
     query: >-
       SELECT a.name AS resource 
       FROM azure_key_vault a, azure_subscription sub 
-      WHERE (a.network_acls IS NULL OR a.network_acls ->> 'defaultAction' != 'Deny') 
+      WHERE (network_acls IS NULL OR network_acls ->> 'defaultAction' != 'Deny') 
       AND sub.subscription_id = a.subscription_id
     output_file: "public_access.csv"
 
