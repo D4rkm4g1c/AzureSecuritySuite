@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Report Generator for AzureSecuritySuite
-Copyright (c) 2024 D4rkm4g1c. All Rights Reserved.
+Copyright (c) 2025 D4rkm4g1c. All Rights Reserved.
 
 PROPRIETARY SOFTWARE - PERSONAL INTELLECTUAL PROPERTY
 This software was developed independently during personal time.

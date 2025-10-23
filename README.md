@@ -254,7 +254,7 @@ For questions or support, please contact me or raise an issue :)
 
 ## Intellectual Property Notice
 
-**Copyright (c) 2024 D4rkm4g1c. All Rights Reserved.**
+**Copyright (c) 2025 D4rkm4g1c. All Rights Reserved.**
 
 This software was developed independently by D4rkm4g1c during personal time and is not affiliated with any employer. All rights reserved to the original author.
 
@@ -266,11 +266,11 @@ This software was developed independently by D4rkm4g1c during personal time and 
 
 2. **Commercial Use Prohibited:** Commercial use, redistribution, or employer use without explicit written permission is strictly prohibited.
 
-3. **Personal Development:** This software was developed independently during personal time using personal resources.
+3. **Personal Development:** This software was developed independently during personal time.
 
 4. **No Employer Rights:** No employer, company, or third party has any rights, title, or interest in this software.
 
-5. **License Violations:** Unauthorized use may result in legal action to protect the copyright holder's rights.
+5. **License Violations:** Unauthorised use may result in legal action to protect the copyright holder's rights.
 
 ### Usage Terms:
 - ✅ **Personal Use:** Allowed for personal learning and portfolio purposes

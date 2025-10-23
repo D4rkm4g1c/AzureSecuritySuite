@@ -2,7 +2,7 @@
 
 ## Software: AzureSecuritySuite
 **Author:** D4rkm4g1c  
-**Copyright:** © 2024 D4rkm4g1c. All Rights Reserved.  
+**Copyright:** © 2025 D4rkm4g1c. All Rights Reserved.  
 **Status:** Proprietary Software - Personal Intellectual Property
 
 ## Ownership Declaration
