@@ -1,8 +1,13 @@
 # Azure Security Scanner (AzureSecuritySuite)
 
+**Copyright (c) 2025 D4rkm4g1c. All Rights Reserved.**  
+**Proprietary Software - Personal Intellectual Property**
+
 ## Overview
 
 AzureSecuritySuite is a comprehensive security assessment tool designed to identify potential security misconfigurations and vulnerabilities in your Azure environment. The tool automates the process of checking for common security issues such as unencrypted disks, public access settings, weak TLS configurations, and more across your Azure resources.
+
+**⚠️ LEGAL NOTICE:** This software was developed independently during personal time and is not affiliated with any employer. All rights reserved to the original author.
 
 ## Features
 
@@ -38,9 +43,11 @@ AzureSecuritySuite/
     └── ...
 ```
 
-## Development Setup
+## Usage (Personal/Educational Only)
 
-1. **Clone Repository**:
+**⚠️ RESTRICTED USE:** This software is for personal and educational use only. Commercial use requires explicit written permission.
+
+1. **Clone Repository** (Personal Use Only):
    ```bash
    git clone https://github.com/D4rkm4g1c/AzureSecuritySuite.git
    cd AzureSecuritySuite
@@ -50,10 +57,13 @@ AzureSecuritySuite/
    ```bash
    pip install -r requirements.txt
    ```
-2. **Run the tool**:
+
+3. **Run the tool**:
    ```bash
    python AzureSecuritySuite.py
    ```
+
+**⚠️ IMPORTANT:** By using this software, you agree to the proprietary license terms. Unauthorized commercial use is prohibited.
    
 ## Scan Definitions
 Security checks are defined in YAML files for easy maintenance:
@@ -90,7 +100,10 @@ scans:
 
 ## Support
 
-For issues and feature requests, please use GitHub Issues.
+**⚠️ RESTRICTED:** Support is limited to personal/educational use only.  
+For issues and feature requests, please contact the copyright holder directly.
+
+**Commercial Support:** Available by arrangement with the copyright holder.
 
 ## Security Checks
 
@@ -196,12 +209,14 @@ The tool performs various security checks across different Azure resources:
   - requests
   - pyyaml
 
-## Installation
+## Installation (Personal Use Only)
 
-1. **Clone the Repository:**
+**⚠️ LEGAL RESTRICTIONS:** This software is proprietary. Installation and use are subject to the license terms.
+
+1. **Clone the Repository** (Personal Use Only):
    ```bash
    git clone https://github.com/D4rkm4g1c/AzureSecuritySuite.git
-   cd azure-security-scanner
+   cd AzureSecuritySuite
    ```
 
 2. **Install Required Packages:**
@@ -211,6 +226,8 @@ The tool performs various security checks across different Azure resources:
 
 3. **Install Azure CLI and Steampipe:**
    Follow the official installation instructions for [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) and [Steampipe](https://steampipe.io/downloads).
+
+**⚠️ LICENSE AGREEMENT:** By installing and using this software, you acknowledge and agree to the proprietary license terms. Commercial use without permission is prohibited.
 
 ## Troubleshooting
 
@@ -222,11 +239,14 @@ The tool performs various security checks across different Azure resources:
 
 ## Contributing
 
-Contributions are welcome! Please fork the repository and submit a pull request with your changes.
+**⚠️ RESTRICTED:** This is proprietary software. Contributions are by invitation only. 
+Unauthorised modifications or contributions without explicit written permission from the copyright holder are prohibited.
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+This project is licensed under a **Proprietary License** with commercial restrictions. See the [LICENSE](LICENSE) file for details.
+
+**⚠️ IMPORTANT:** This software is proprietary intellectual property. Commercial use, redistribution, or employer use requires explicit written permission from the copyright holder.
 
 ## Contact
 
@@ -234,4 +254,32 @@ For questions or support, please contact me or raise an issue :)
 
 ## Intellectual Property Notice
 
+**Copyright (c) 2024 D4rkm4g1c. All Rights Reserved.**
+
 This software was developed independently by D4rkm4g1c during personal time and is not affiliated with any employer. All rights reserved to the original author.
+
+## Legal Protection & Usage Restrictions
+
+### ⚠️ IMPORTANT LEGAL NOTICES:
+
+1. **Proprietary Software:** This is proprietary intellectual property protected by copyright law.
+
+2. **Commercial Use Prohibited:** Commercial use, redistribution, or employer use without explicit written permission is strictly prohibited.
+
+3. **Personal Development:** This software was developed independently during personal time using personal resources.
+
+4. **No Employer Rights:** No employer, company, or third party has any rights, title, or interest in this software.
+
+5. **License Violations:** Unauthorized use may result in legal action to protect the copyright holder's rights.
+
+### Usage Terms:
+- ✅ **Personal Use:** Allowed for personal learning and portfolio purposes
+- ✅ **Educational Use:** Allowed for educational and non-commercial purposes
+- ❌ **Commercial Use:** Prohibited without written permission
+- ❌ **Employer Use:** Prohibited without written permission
+- ❌ **Redistribution:** Prohibited without written permission
+
+### Contact for Licensing:
+For commercial licensing, permission requests, or legal inquiries, contact the copyright holder directly.
+
+**By using this software, you acknowledge and agree to these terms and conditions.**
